@@ -17,7 +17,7 @@ from subnet.constants import (
 )
 from subnet.shared.subtensor import get_current_block
 from subnet.validator.event import EventSchema
-from subnet.validator.utils import ping_and_retry_uids
+from subnet.validator.utils import ping_and_retry_uids, get_selected_miners
 from subnet.validator.localisation import get_country
 from subnet.validator.bonding import update_statistics
 from subnet.validator.state import log_event
@@ -99,9 +99,22 @@ async def challenge_data(self):
         rewards=[],
     )
 
+    # Get miners already selected
+    validator_hotkey = self.metagraph.hotkeys[self.uid]
+    miners_selected = await get_selected_miners(self, validator_hotkey)
+    bt.logging.debug(f"[{CHALLENGE_NAME}] Uids already selected {miners_selected}")
+
     # Select the miners
-    uids, _ = await ping_and_retry_uids(self, k=10)
-    bt.logging.debug(f"[{CHALLENGE_NAME}] Available uids {uids}")
+    # TODO: Restore to 10 before merging to prod!!
+    uids, _ = await ping_and_retry_uids(
+        self, validator_hotkey, k=1, exclude_uids=miners_selected
+    )
+
+    if len(uids) == 0:
+        bt.logging.warning(f"[{CHALLENGE_NAME}] No uids available")
+        return
+    else:
+        bt.logging.debug(f"[{CHALLENGE_NAME}] Available uids {uids}")
 
     # Initialise the rewards object
     rewards: torch.FloatTensor = torch.zeros(len(uids), dtype=torch.float32).to(
@@ -254,7 +267,9 @@ async def challenge_data(self):
         1 - alpha
     ) * self.moving_averaged_scores.to(self.device)
     event.moving_averaged_scores = self.moving_averaged_scores.tolist()
-    bt.logging.trace(f"[{CHALLENGE_NAME}] Updated moving avg scores: {self.moving_averaged_scores}")
+    bt.logging.trace(
+        f"[{CHALLENGE_NAME}] Updated moving avg scores: {self.moving_averaged_scores}"
+    )
 
     # Display step time
     forward_time = time.time() - start_time

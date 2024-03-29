@@ -54,7 +54,7 @@ def compute_latency_score(idx, uid, validator_country, responses):
                 location["longitude"],
             )
 
-        scaled_distance = distance / MAX_DISTANCE
+        scaled_distance = distance / MAX_DISTANCE if distance > 0 else 0
         tolerance = 1 - scaled_distance
 
         process_time = process_time * tolerance if process_time else 5
@@ -84,7 +84,11 @@ def compute_latency_score(idx, uid, validator_country, responses):
     score = relative_latency_scores[idx]
     bt.logging.trace(f"[{uid}][Score][Latency] Relative score {score}")
 
-    normalized_score = (score - min_score) / (max_score - min_score)
+    normalized_score = (
+        (score - min_score) / (max_score - min_score)
+        if max_score - min_score > 0
+        else 0
+    )
 
     return normalized_score
 

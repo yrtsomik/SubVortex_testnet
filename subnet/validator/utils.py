@@ -181,21 +181,43 @@ async def ping_uids(self, uids):
 
 
 async def ping_and_retry_uids(
-    self, k: int = 4, max_retries: int = 3, exclude_uids: List[int] = []
+    self,
+    ss58_address: str,
+    k: int = 4,
+    exclude_uids: List[int] = [],
 ):
     """
     Fetch available uids to minimize waiting for timeouts if they're going to fail anyways...
     """
-    # Select initial subset of miners to query
-    uids = await get_available_query_miners(self, k=k, exclude=exclude_uids)
-    bt.logging.debug("initial ping_and_retry() uids:", uids)
+    selection_key = f"selection:{ss58_address}"
 
-    retries = 0
+    # Select init
+    # ial subset of miners to query
+    available_uids = await get_available_query_miners(self, k=k, exclude=exclude_uids)
+    bt.logging.debug("initial ping_and_retry() uids:", available_uids)
+
+    if len(available_uids) == 0:
+        await self.database.delete(selection_key)
+        bt.logging.debug(f"Uids selection reset")
+
+        exclude_uids = []
+
+        # Retry to get the right uids list
+        available_uids = await get_available_query_miners(
+            self, k=k, exclude=exclude_uids
+        )
+        bt.logging.debug("initial ping_and_retry() uids:", available_uids)
+    else:
+        bt.logging.debug(f"{len(available_uids)} uids remains to be selected")
+
+    # retries = 0
     successful_uids = set()
     failed_uids = set()
-    while len(successful_uids) < k and retries < max_retries:
+    while len(successful_uids) < k:
         # Ping all UIDs
-        current_successful_uids, current_failed_uids = await ping_uids(self, uids)
+        current_successful_uids, current_failed_uids = await ping_uids(
+            self, available_uids
+        )
         successful_uids.update(current_successful_uids)
         failed_uids.update(current_failed_uids)
 
@@ -204,15 +226,29 @@ async def ping_and_retry_uids(
 
         # If enough UIDs are successful, select the first k items
         if len(successful_uids) >= k:
-            uids = list(successful_uids)[:k]
+            available_uids = list(successful_uids)[:k]
             break
 
         # Reroll for k UIDs excluding the successful ones
-        uids = await get_available_query_miners(
-            self, k=k, exclude=list(successful_uids.union(failed_uids))
+        available_uids = await get_available_query_miners(
+            self, k=k, exclude=exclude_uids + list((successful_uids.union(failed_uids)))
         )
-        bt.logging.debug(f"ping_and_retry() new uids: {uids}")
-        retries += 1
+        bt.logging.debug(f"ping_and_retry() new uids: {available_uids}")
+
+        if len(available_uids) == 0:
+            # No more uids available
+            if len(successful_uids) > 0:
+                # There are some successtul uids => let's chllenge them
+                break
+
+            # No successful uids available => let's reset the section
+            available_uids = await get_available_query_miners(self, k=k)
+            bt.logging.debug("initial ping_and_retry() uids:", available_uids)
+
+    # Store successful and failures uids
+    uids = exclude_uids + list(successful_uids)[:k] + list(failed_uids)
+    selection = ",".join(str(uid) for uid in uids)
+    await self.database.set(selection_key, selection)
 
     # Log if the maximum retries are reached without enough successful UIDs
     if len(successful_uids) < k:
@@ -221,3 +257,19 @@ async def ping_and_retry_uids(
         )
 
     return list(successful_uids)[:k], failed_uids
+
+
+async def get_selected_miners(self, ss58_address: str):
+    selection_key = f"selection:{ss58_address}"
+
+    # Get the uids selection
+    value = await self.database.get(selection_key)
+    if value is None:
+        bt.logging.debug(f"get_selected_miners() no uids")
+        return []
+
+    # Get the uids already selected
+    uids_str = value.decode("utf-8") if isinstance(value, bytes) else value
+    uids = [int(uid) for uid in uids_str.split(",")]
+
+    return uids
