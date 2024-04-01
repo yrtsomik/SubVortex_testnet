@@ -3,6 +3,7 @@ import re
 import path
 import codecs
 import requests
+import subprocess
 import bittensor as bt
 
 VERSION_URL = "https://github.com/eclipsevortex/SubVortex/blob/main/subnet/__init__.py"
@@ -10,6 +11,21 @@ VERSION_URL = "https://github.com/eclipsevortex/SubVortex/blob/main/subnet/__ini
 
 def convert_version_to_number(version):
     return int(version.replace(".", "").replace("-", "").replace("_", ""))
+
+
+def compare_versions(version1, version2):
+    def version_tuple(version):
+        return tuple(map(int, version.split(".")))
+
+    v1 = version_tuple(version1)
+    v2 = version_tuple(version2)
+
+    if v1 < v2:
+        return -1
+    elif v1 > v2:
+        return 1
+
+    return 0
 
 
 def get_remote_version():
@@ -35,12 +51,13 @@ def get_local_version():
     """
     try:
         # loading version from __init__.py
-        here = path.abspath(path.dirname(__file__))
+        here = os.path.abspath(os.path.dirname(__file__))
         with codecs.open(
-            os.path.join(here, "__init__.py"), encoding="utf-8"
+            os.path.join(here, "../__init__.py"), encoding="utf-8"
         ) as init_file:
+            content = init_file.read()
             version_match = re.search(
-                r"^__version__ = ['\"]([^'\"]*)['\"]", init_file.read(), re.M
+                r"^__version__ = ['\"]([^'\"]*)['\"]", content, re.M
             )
             version_string = version_match.group(1)
         return version_string
@@ -70,27 +87,64 @@ def check_version_updated():
     return 1
 
 
+def check_for_new_release(repo_owner, repo_name):
+    url = f"https://api.github.com/repos/{repo_owner}/{repo_name}/releases/latest"
+    response = requests.get(url)
+    if response.status_code == 200:
+        latest_version = response.json()["tag_name"]
+        return latest_version
+        # if latest_version != current_version:
+    #         print(f"A new release ({latest_version}) is available.")
+    #         return latest_version
+    #     else:
+    #         print("Your project is up-to-date.")
+    # else:
+    #     print("Failed to check for new releases.")
+
+
 def try_update_repository():
     bt.logging.info("Try updating packages...")
 
     try:
-        repo = git.Repo(search_parent_directories=True)
-        repo_path = repo.working_tree_dir
-        
-        requirements_path = os.path.join(repo_path, "requirements.txt")
-        
-        python_executable = sys.executable
-        subprocess.check_call([python_executable], "-m", "pip", "install", "-r", requirements_path)
+        # Get the tag
+        check_for_new_release()
+
+        # Update dependencies
+        # subprocess.run(["pip", "install", "-r", "requirements.txt", "--upgrade"])
+
         bt.logging.info("Updating packages finished.")
-        
+
     except Exception as e:
         bt.logging.info(f"Updating packages failed {e}")
 
 
 def try_upgrade():
-    result = check_version_updated()
-    if result == 0:
+    repo_owner = "eclipsevortex"
+    repo_name = "SubVortex"
+
+    # Get the current version
+    current_version = f"v{get_local_version()}"
+
+    # Get the latest version
+    latest_version = check_for_new_release(repo_owner, repo_name)
+    if latest_version is None:
+        bt.logging.warning("Could not get the latest version.")
         return
-    
-    # Pull the repository
-    try_upgrade_repository()
+
+    # Compare the versions
+    result = compare_versions(current_version, latest_version)
+    if result == 0:
+        bt.logging.success("Latest version already installed.")
+        return
+
+    # Pull the latest version
+
+    # Update dependencies
+    subprocess.run(["pip", "install", "-r", "requirements.txt", "--upgrade"])
+
+
+    bt.logging.success("Latest version installed succesfully.")
+
+
+if __name__ == "__main__":
+    try_upgrade()
