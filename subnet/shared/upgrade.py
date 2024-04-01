@@ -69,3 +69,28 @@ def check_version_updated():
     bt.logging.info(f"The subnet must be downgraded")
     return 1
 
+
+def try_update_repository():
+    bt.logging.info("Try updating packages...")
+
+    try:
+        repo = git.Repo(search_parent_directories=True)
+        repo_path = repo.working_tree_dir
+        
+        requirements_path = os.path.join(repo_path, "requirements.txt")
+        
+        python_executable = sys.executable
+        subprocess.check_call([python_executable], "-m", "pip", "install", "-r", requirements_path)
+        bt.logging.info("Updating packages finished.")
+        
+    except Exception as e:
+        bt.logging.info(f"Updating packages failed {e}")
+
+
+def try_upgrade():
+    result = check_version_updated()
+    if result == 0:
+        return
+    
+    # Pull the repository
+    try_upgrade_repository()
