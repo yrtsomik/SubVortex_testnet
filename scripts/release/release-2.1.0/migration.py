@@ -204,7 +204,7 @@ async def rollback(args):
             ]
 
             diff = list(set(properties_removed) - set(keys))
-            if len(keys) > 0:
+            if len(diff) > 0:
                 bt.logging.warning(f"The stats key(s) {diff} still exist.")
                 checked = False
                 break
@@ -221,7 +221,7 @@ async def rollback(args):
             ]
 
             diff = list(set(properties_added) - set(keys))
-            if len(keys) > 0:
+            if len(diff) > 0:
                 bt.logging.warning(f"The stats key(s) {diff} does not exist.")
                 checked = False
                 break

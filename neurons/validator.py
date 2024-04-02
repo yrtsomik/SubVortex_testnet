@@ -29,6 +29,7 @@ from subnet.shared.subtensor import get_current_block
 from subnet.shared.subtrate import get_weights_min_stake
 from subnet.shared.weights import should_set_weights
 
+from subnet.validator.utils import get_available_uids
 from subnet.validator.config import config, check_config, add_args
 from subnet.validator.localisation import get_country, get_localisation
 from subnet.validator.forward import forward
@@ -154,6 +155,18 @@ class Validator:
             country_localisation["country"] if country_localisation else "None"
         )
         bt.logging.debug(f"Validator based in {country_name}")
+
+        # Get the countries
+        countries = {}
+        for uid in get_available_uids(self):
+            ip = self.metagraph.axons[uid].ip
+            if str(uid) in countries and countries[f"{uid}"][0] == ip:
+                continue
+
+            countries[f"{uid}"] = (ip, get_country(ip))
+            time.sleep(0.5)
+        self.countries = countries
+        bt.logging.debug(f"Country loaded {len(countries)}: {countries}")
 
         # Init wandb.
         if not self.config.wandb.off:

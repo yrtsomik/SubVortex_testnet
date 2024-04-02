@@ -57,15 +57,18 @@ async def handle_synapse(self, uid: int):
     # Get miner ip
     ip = self.metagraph.axons[uid].ip
 
-    # Get the country of the subtensor via a free api
-    country = get_country(ip)
-    bt.logging.debug(f"[{CHALLENGE_NAME}][{uid}] Subtensor country {country}")
+    ip_str = str(ip)
+    ui_country = self.countries.get(str(uid))
+    if ui_country is None or ui_country[0] != ip or ui_country[1] is None:
+        # Get the country of the subtensor via a free api
+        country = self.countries[ip_str] = (ip, get_country(ip))
+        bt.logging.debug(f"[{CHALLENGE_NAME}][{uid}] Subtensor country {country}")
 
     # Check miner is available
     available = await check_miner_availability(self, uid)
     if available == False:
         bt.logging.warning(f"[{CHALLENGE_NAME}][{uid}] Miner is not reachable")
-        return uid, available, country, DEFAULT_PROCESS_TIME
+        return uid, available, DEFAULT_PROCESS_TIME
 
     # Check the subtensor is available
     process_time = None
@@ -103,7 +106,7 @@ async def handle_synapse(self, uid: int):
         process_time = DEFAULT_PROCESS_TIME if process_time is None else process_time
         bt.logging.warning(f"[{CHALLENGE_NAME}][{uid}] Subtensor not verified")
 
-    return uid, verified, country, process_time
+    return uid, verified, process_time
 
 
 async def challenge_data(self):
@@ -115,17 +118,11 @@ async def challenge_data(self):
     uids = await get_next_uids(self, validator_hotkey, k=10)
     bt.logging.debug(f"[{CHALLENGE_NAME}] Available uids {uids}")
 
-    # Get the countries
-    miners_countries = {}
-    for idx, (uid) in enumerate(get_available_uids(self)):
-        ip = self.metagraph.axons[uid].ip
-        miners_countries[f"{uid}"] = get_country(ip)
-    bt.logging.debug(
-        f"[{CHALLENGE_NAME}] Country loaded for {len(miners_countries)} uids"
-    )
-
     # Initialise the miners table
-    miners = await build_miners_table(self, miners_countries)
+    miner_countries = {}
+    for key, item in self.countries.items():
+        miner_countries[str(key)] = item[1]
+    miners = await build_miners_table(self, miner_countries)
     bt.logging.debug(f"[{CHALLENGE_NAME}] Miners table contains {len(miners)} elements")
 
     # Initialise the rewards object
@@ -143,7 +140,7 @@ async def challenge_data(self):
     bt.logging.info(f"[{CHALLENGE_NAME}] Computing uids scores")
 
     # Compute the score
-    for idx, (uid, verified, _, process_time) in enumerate(responses):
+    for idx, (uid, verified, process_time) in enumerate(responses):
         # Compute the scores if only one miner is running on the axon machine
         miner = [miner for miner in miners if int(miner["uid"]) == uid][0]
 
@@ -190,7 +187,7 @@ async def challenge_data(self):
 
             # Compute score for distribution
             miner["distribution_score"] = compute_distribution_score(
-                verified, uid, miners_countries
+                verified, uid, miner_countries
             )
             bt.logging.debug(
                 f"[{CHALLENGE_NAME}][{uid}] Distribution score {miner['distribution_score']}"

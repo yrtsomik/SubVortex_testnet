@@ -73,7 +73,7 @@ def compute_latency_score(verified, uid, validator_country, responses, miners):
             continue
 
         matches = [response for response in responses if response[0] == miner.get('uid')]
-        new_process_time = matches[0][3] if len(matches) > 0 else process_time or 0
+        new_process_time = matches[0][2] if len(matches) > 0 else process_time or 0
 
         # Just for log purposes
         raw_process_times.append((miner.get("uid"), new_process_time))
