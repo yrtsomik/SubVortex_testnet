@@ -36,10 +36,9 @@ from subnet.shared.weights import should_set_weights
 from subnet.validator.config import config, check_config, add_args
 from subnet.validator.localisation import get_country, get_localisation
 from subnet.validator.forward import forward
-from subnet.validator.miner import Miner
+from subnet.validator.miner import Miner, get_all_miners
 from subnet.validator.state import (
-    checkpoint,
-    should_checkpoint,
+    resync_metagraph,
     load_state,
     save_state,
     init_wandb,
@@ -178,13 +177,15 @@ class Validator:
         self.last_registered_block = 0
         self.rebalance_queue = []
         self.miners: List[Miner] = []
-        self.last_purged_epoch = 0
 
-    def run(self):
+    async def run(self):
         bt.logging.info("run()")
 
+        # Init miners
+        self.miners = await get_all_miners(self)
+        bt.logging.debug(f"Miners loaded {len(self.miners)}")
+
         load_state(self)
-        checkpoint(self)
 
         bt.logging.info("starting subscription handler")
         self.run_subscription_thread()
@@ -193,7 +194,7 @@ class Validator:
             while 1:
                 start_epoch = time.time()
 
-                self.metagraph.sync(subtensor=self.subtensor)
+                resync_metagraph(self)
                 prev_set_weights_block = self.metagraph.last_update[self.uid].item()
 
                 # --- Wait until next step epoch.
@@ -222,22 +223,6 @@ class Validator:
                     await asyncio.gather(*coroutines)
 
                 self.loop.run_until_complete(run_forward())
-
-                # Resync the network state
-                bt.logging.info("Checking if should checkpoint")
-                current_block = get_current_block(self.subtensor)
-                should_checkpoint_validator = should_checkpoint(
-                    current_block,
-                    self.prev_step_block,
-                    self.config.neuron.checkpoint_block_length,
-                )
-                bt.logging.debug(
-                    f"should_checkpoint() params: (current block) {current_block} (prev block) {self.prev_step_block} (checkpoint_block_length) {self.config.neuron.checkpoint_block_length}"
-                )
-                bt.logging.debug(f"should checkpoint ? {should_checkpoint_validator}")
-                if should_checkpoint_validator:
-                    bt.logging.info("Checkpointing...")
-                    checkpoint(self)
 
                 # Set the weights on chain.
                 bt.logging.info("Checking if should set weights")
@@ -369,4 +354,4 @@ class Validator:
 
 
 if __name__ == "__main__":
-    Validator().run()
+    asyncio.run(Validator().run())

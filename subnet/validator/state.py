@@ -24,12 +24,13 @@ from wandb.apis import public
 import shutil
 import bittensor as bt
 from datetime import datetime
-from dataclasses import asdict
 
 from subnet import __spec_version__ as THIS_SPEC_VERSION
 from subnet import __version__ as THIS_VERSION
+
 import subnet.validator as validator
 from subnet.validator.event import EventSchema
+from subnet.validator.miner import resync_miners
 
 
 def should_checkpoint(current_block, prev_step_block, checkpoint_block_length):
@@ -37,11 +38,14 @@ def should_checkpoint(current_block, prev_step_block, checkpoint_block_length):
     return current_block - prev_step_block >= checkpoint_block_length
 
 
-def checkpoint(self):
+async def resync_metagraph(self):
     """Checkpoints the training process."""
     bt.logging.info("checkpoint()")
-    resync_metagraph(self)
-    save_state(self)
+    resynched = resync_metagraph(self)
+    
+    if resynched:
+        await resync_miners(self)
+        save_state(self)
 
 
 def resync_metagraph(self: "validator.neuron.neuron"):
@@ -58,30 +62,37 @@ def resync_metagraph(self: "validator.neuron.neuron"):
     metagraph_axon_info_updated = previous_metagraph.axons != self.metagraph.axons
     bt.logging.debug(f"metagraph_axon_info_updated: {metagraph_axon_info_updated}")
 
-    if metagraph_axon_info_updated:
-        bt.logging.info(
-            "resync_metagraph() Metagraph updated, re-syncing moving averages"
-        )
+    if not metagraph_axon_info_updated:
+        return False
 
-        # Zero out all hotkeys that have been replaced.
-        for uid, hotkey in enumerate(previous_metagraph.hotkeys):
-            if hotkey != self.metagraph.hotkeys[uid]:
-                bt.logging.debug(
-                    f"resync_metagraph() old hotkey {hotkey} | uid {uid} has been replaced by {self.metagraph.hotkeys[uid]}"
-                )
-                self.moving_averaged_scores[uid] = 0  # hotkey has been replaced
+    bt.logging.info(
+        "resync_metagraph() Metagraph updated, re-syncing moving averages"
+    )
 
-        # Check to see if the metagraph has changed size.
-        # If so, we need to add new hotkeys and moving averages.
-        if len(self.moving_averaged_scores) < len(self.metagraph.hotkeys):
-            bt.logging.info(
-                "resync_metagraph() Metagraph has grown, adding new hotkeys and moving averages"
+    # Zero out all hotkeys that have been replaced.
+    for uid, hotkey in enumerate(previous_metagraph.hotkeys):
+        if hotkey != self.metagraph.hotkeys[uid]:
+            bt.logging.debug(
+                f"resync_metagraph() old hotkey {hotkey} | uid {uid} has been replaced by {self.metagraph.hotkeys[uid]}"
             )
-            # Update the size of the moving average scores.
-            new_moving_average = torch.zeros((self.metagraph.n)).to(self.device)
-            min_len = min(len(self.metagraph.hotkeys), len(self.moving_averaged_scores))
-            new_moving_average[:min_len] = self.moving_averaged_scores[:min_len]
-            self.moving_averaged_scores = new_moving_average
+            self.moving_averaged_scores[uid] = 0  # hotkey has been replaced
+
+    # Check to see if the metagraph has changed size.
+    # If so, we need to add new hotkeys and moving averages.
+    if len(self.moving_averaged_scores) < len(self.metagraph.hotkeys):
+        bt.logging.info(
+            "resync_metagraph() Metagraph has grown, adding new hotkeys and moving averages"
+        )
+        # Update the size of the moving average scores.
+        new_moving_average = torch.zeros((self.metagraph.n)).to(self.device)
+        min_len = min(len(self.metagraph.hotkeys), len(self.moving_averaged_scores))
+        new_moving_average[:min_len] = self.moving_averaged_scores[:min_len]
+        self.moving_averaged_scores = new_moving_average
+
+    # Update the hotkeys.
+    self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
+
+    return True
 
 
 def save_state(self):
@@ -90,7 +101,6 @@ def save_state(self):
     try:
         neuron_state_dict = {
             "neuron_weights": self.moving_averaged_scores.to("cpu").tolist(),
-            "last_purged_epoch": self.last_purged_epoch,
         }
         torch.save(neuron_state_dict, f"{self.config.neuron.full_path}/model.torch")
         bt.logging.success(
@@ -110,8 +120,6 @@ def load_state(self):
     try:
         state_dict = torch.load(f"{self.config.neuron.full_path}/model.torch")
         neuron_weights = torch.tensor(state_dict["neuron_weights"])
-        self.last_purged_epoch = state_dict.get("last_purged_epoch", 0)
-        bt.logging.info(f"Loaded last_purged_epoch: {self.last_purged_epoch}")
         # Check to ensure that the size of the neruon weights matches the metagraph size.
         if neuron_weights.shape != (self.metagraph.n,):
             bt.logging.warning(

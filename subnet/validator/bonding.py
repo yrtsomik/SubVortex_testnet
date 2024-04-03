@@ -16,11 +16,11 @@
 # DEALINGS IN THE SOFTWARE.
 
 import math
-from redis import asyncio as aioredis
 import bittensor as bt
 
 from subnet.constants import *
 from subnet.validator.miner import Miner
+from subnet.validator.database import update_hotkey_statistics
 
 
 def wilson_score_interval(successes, total):
@@ -53,11 +53,11 @@ async def update_statistics(
     self,
     miner: Miner,
 ):
+    '''
+    Update the statistics of the miner in the database
+    '''
     # Get the hotkey
     hotkey = self.metagraph.hotkeys[miner.uid]
 
-    # Update statistics 
-    await self.database.hmset(
-        f"stats:{hotkey}",
-        miner.snapshot
-    )
+    # Update statistics
+    await update_hotkey_statistics(hotkey, miner.snapshot, self.database)
