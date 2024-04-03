@@ -19,6 +19,7 @@ import time
 import bittensor as bt
 
 from subnet.validator.challenge import challenge_data
+from subnet.validator.miner import get_miners
 
 
 async def forward(self):
@@ -26,6 +27,10 @@ async def forward(self):
 
     # Record forward time
     start = time.time()
+
+    if len(self.miners) == 0:
+        self.miners = await get_miners(self)
+        bt.logging.debug(f"Miners loaded {len(self.miners)}")
 
     # Send synapse to get challenge
     bt.logging.info("initiating challenge")

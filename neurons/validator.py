@@ -21,6 +21,7 @@ import asyncio
 from redis import asyncio as aioredis
 import threading
 import bittensor as bt
+from typing import List
 from shlex import quote
 from copy import deepcopy
 from pprint import pformat
@@ -35,6 +36,7 @@ from subnet.shared.weights import should_set_weights
 from subnet.validator.config import config, check_config, add_args
 from subnet.validator.localisation import get_country, get_localisation
 from subnet.validator.forward import forward
+from subnet.validator.miner import Miner
 from subnet.validator.state import (
     checkpoint,
     should_checkpoint,
@@ -175,6 +177,7 @@ class Validator:
         self.subscription_thread: threading.Thread = None
         self.last_registered_block = 0
         self.rebalance_queue = []
+        self.miners: List[Miner] = []
         self.last_purged_epoch = 0
 
     def run(self):

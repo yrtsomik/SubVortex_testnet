@@ -118,3 +118,11 @@ async def hotkey_at_capacity(
                 f"Hotkey {hotkey} has {(limit - total_storage) // 1024**3} GB free."
             )
         return False
+
+
+async def remove_old_key():
+    pass
+
+
+async def add_new_key():
+    pass
