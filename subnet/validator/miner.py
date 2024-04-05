@@ -129,7 +129,7 @@ async def get_all_miners(self) -> List[Miner]:
 
         # Check there are not more than 1 miner associated with the ip
         ip_occurences = get_miner_ip_occurences(axon.ip, ips)
-        
+
         statistics = await get_hotkey_statistics(axon.hotkey, self.database)
         if statistics is None:
             miner = Miner(
@@ -229,9 +229,6 @@ async def resync_miners(self):
     """
     bt.logging.info("resync_miners()")
 
-    # Get miners ip
-    ips = [miner.ip for miner in self.miners]
-
     for uid, axon in enumerate(self.metagraph.axons):
         # Get details
         ip = axon.ip
@@ -264,5 +261,9 @@ async def resync_miners(self):
                 f"[{miner.uid}] Miner moved from {previous_ip} to {miner.ip}"
             )
 
-        # Check the miner's ip is not used by multiple miners (1 miner = 1 ip)
-        miner.ip_occurences = get_miner_ip_occurences(miner.ip, ips)
+        # Refresh the miners ip occurrences of the impacted miners
+        ips = [miner.ip for miner in self.miners]
+        for item in self.miners:
+            item.ip_occurences = get_miner_ip_occurences(item.ip, ips)
+
+            

@@ -42,13 +42,13 @@ def compute_availability_score(miner: Miner):
     Compute the availability score of the uid
     """
 
-    miner.availability_score = (
+    score = (
         1.0
         if miner.verified and not miner.has_ip_conflicts
         else AVAILABILITY_FAILURE_REWARD
     )
 
-    return miner.availability_score
+    return score
 
 
 async def compute_reliability_score(miner: Miner):
@@ -67,11 +67,9 @@ async def compute_reliability_score(miner: Miner):
     )
 
     # Step 2: Normalization
-    miner.reliability_score = wilson_score_interval(
-        miner.challenge_successes, miner.challenge_attempts
-    )
+    score = wilson_score_interval(miner.challenge_successes, miner.challenge_attempts)
 
-    return miner.reliability_score
+    return score
 
 
 def compute_latency_score(validator_country: str, miner: Miner, miners: List[Miner]):
@@ -145,9 +143,9 @@ def compute_latency_score(validator_country: str, miner: Miner, miners: List[Min
         # Only one uid with process time
         return 1
 
-    miner.latency_score = (score - min_score) / (max_score - min_score)
+    score = (score - min_score) / (max_score - min_score)
 
-    return miner.latency_score
+    return score
 
 
 def compute_distribution_score(miner: Miner, miners: List[Miner]):
@@ -173,9 +171,9 @@ def compute_distribution_score(miner: Miner, miners: List[Miner]):
     bt.logging.trace(f"[{miner.uid}][Score][Distribution] {count} uids in {country}")
 
     # Step 4: Compute the score
-    miner.distribution_score = 1 / count if count > 0 else 0
+    score = 1 / count if count > 0 else 0
 
-    return miner.distribution_score
+    return score
 
 
 def compute_final_score(miner: Miner):
@@ -193,6 +191,6 @@ def compute_final_score(miner: Miner):
         AVAILABILITY_WEIGHT + LATENCY_WEIGHT + RELIABILLITY_WEIGHT + DISTRIBUTION_WEIGHT
     )
 
-    miner.score = numerator / denominator if denominator != 0 else 0
+    score = numerator / denominator if denominator != 0 else 0
 
-    return miner.score
+    return score

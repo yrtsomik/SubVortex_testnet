@@ -38,11 +38,11 @@ def should_checkpoint(current_block, prev_step_block, checkpoint_block_length):
     return current_block - prev_step_block >= checkpoint_block_length
 
 
-async def resync_metagraph(self):
+async def resync_metagraph_and_miners(self):
     """Checkpoints the training process."""
     bt.logging.info("checkpoint()")
     resynched = resync_metagraph(self)
-    
+
     if resynched:
         await resync_miners(self)
         save_state(self)
@@ -65,9 +65,7 @@ def resync_metagraph(self: "validator.neuron.neuron"):
     if not metagraph_axon_info_updated:
         return False
 
-    bt.logging.info(
-        "resync_metagraph() Metagraph updated, re-syncing moving averages"
-    )
+    bt.logging.info("resync_metagraph() Metagraph updated, re-syncing moving averages")
 
     # Zero out all hotkeys that have been replaced.
     for uid, hotkey in enumerate(previous_metagraph.hotkeys):
@@ -88,9 +86,6 @@ def resync_metagraph(self: "validator.neuron.neuron"):
         min_len = min(len(self.metagraph.hotkeys), len(self.moving_averaged_scores))
         new_moving_average[:min_len] = self.moving_averaged_scores[:min_len]
         self.moving_averaged_scores = new_moving_average
-
-    # Update the hotkeys.
-    self.hotkeys = copy.deepcopy(self.metagraph.hotkeys)
 
     return True
 

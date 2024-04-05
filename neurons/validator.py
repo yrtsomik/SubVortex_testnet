@@ -38,7 +38,7 @@ from subnet.validator.localisation import get_country, get_localisation
 from subnet.validator.forward import forward
 from subnet.validator.miner import Miner, get_all_miners
 from subnet.validator.state import (
-    resync_metagraph,
+    resync_metagraph_and_miners,
     load_state,
     save_state,
     init_wandb,
@@ -194,7 +194,7 @@ class Validator:
             while 1:
                 start_epoch = time.time()
 
-                resync_metagraph(self)
+                await resync_metagraph_and_miners(self)
                 prev_set_weights_block = self.metagraph.last_update[self.uid].item()
 
                 # --- Wait until next step epoch.

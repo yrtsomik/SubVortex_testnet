@@ -16,7 +16,6 @@ async def test_a_not_verified_miner_should_return_a_lowest_score():
 
     # Assert
     assert result < reliability_score
-    assert miner.reliability_score < reliability_score
 
 
 @pytest.mark.asyncio
@@ -45,7 +44,6 @@ async def test_an_ip_conflicts_miner_should_return_a_lowest_score():
 
     # Assert
     assert result < reliability_score
-    assert miner.reliability_score < reliability_score
 
 
 @pytest.mark.asyncio
@@ -74,7 +72,6 @@ async def test_a_not_verified_and_ip_conflicts_miner_should_return_a_lowest_scor
 
     # Assert
     assert result < reliability_score
-    assert miner.reliability_score < reliability_score
 
 
 @pytest.mark.asyncio
@@ -103,7 +100,6 @@ async def test_a_verified_miner_should_return_a_greater_score():
 
     # Assert
     assert result > reliability_score
-    assert miner.reliability_score > reliability_score
 
 
 @pytest.mark.asyncio

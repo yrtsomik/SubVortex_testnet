@@ -134,12 +134,6 @@ async def challenge_data(self):
         miner: Miner = next((miner for miner in self.miners if miner.uid == uid), None)
         bt.logging.info(f"[{CHALLENGE_NAME}][{miner.uid}] Computing score...")
 
-        # Initialise scores
-        availability_score = 0
-        latency_score = 0
-        reliability_score = 0
-        distribution_score = 0
-
         # Check the miner's ip is not used by multiple miners (1 miner = 1 ip)
         if miner.ip_occurences != 1:
             bt.logging.warning(
@@ -147,47 +141,48 @@ async def challenge_data(self):
             )
 
         # Compute score for availability
-        availability_score = compute_availability_score(miner)
-        availability_scores.append(availability_score)
+        miner.availability_score = compute_availability_score(miner)
+        availability_scores.append(miner.availability_score)
         bt.logging.debug(
-            f"[{CHALLENGE_NAME}][{miner.uid}] Availability score {availability_score}"
+            f"[{CHALLENGE_NAME}][{miner.uid}] Availability score {miner.availability_score}"
         )
 
         # Compute score for latency
-        latency_score = compute_latency_score(self.country, miner, self.miners)
-        latency_scores.append(latency_score)
+        miner.latency_score = compute_latency_score(self.country, miner, self.miners)
+        latency_scores.append(miner.latency_score)
         bt.logging.debug(
-            f"[{CHALLENGE_NAME}][{miner.uid}] Latency score {latency_score}"
+            f"[{CHALLENGE_NAME}][{miner.uid}] Latency score {miner.latency_score}"
         )
 
         # Compute score for reliability
-        reliability_score = await compute_reliability_score(miner)
-        reliability_scores.append(reliability_score)
+        miner.reliability_score = await compute_reliability_score(miner)
+        reliability_scores.append(miner.reliability_score)
         bt.logging.debug(
-            f"[{CHALLENGE_NAME}][{miner.uid}] Reliability score {reliability_score}"
+            f"[{CHALLENGE_NAME}][{miner.uid}] Reliability score {miner.reliability_score}"
         )
 
         # Compute score for distribution
-        distribution_score = compute_distribution_score(miner, self.miners)
-        distribution_scores.append((miner.uid, distribution_score))
+        miner.distribution_score = compute_distribution_score(miner, self.miners)
+        distribution_scores.append((miner.uid, miner.distribution_score))
         bt.logging.debug(
-            f"[{CHALLENGE_NAME}][{miner.uid}] Distribution score {distribution_score}"
+            f"[{CHALLENGE_NAME}][{miner.uid}] Distribution score {miner.distribution_score}"
         )
 
         # Compute final score
-        rewards[idx] = compute_final_score(miner)
-        bt.logging.info(f"[{CHALLENGE_NAME}][{miner.uid}] Final score {rewards[idx]}")
+        miner.score = compute_final_score(miner)
+        rewards[idx] = miner.score
+        bt.logging.info(f"[{CHALLENGE_NAME}][{miner.uid}] Final score {miner.score}")
 
         # Log the event data for this specific challenge
         event.uids.append(miner.uid)
         event.countries.append(miner.country)
         event.successful.append(miner.verified)
         event.completion_times.append(miner.process_time)
-        event.rewards.append(rewards[idx].item())
-        event.availability_scores.append(availability_score)
-        event.latency_scores.append(latency_score)
-        event.reliability_scores.append(reliability_score)
-        event.distribution_scores.append(distribution_score)
+        event.rewards.append(miner.score)
+        event.availability_scores.append(miner.availability_score)
+        event.latency_scores.append(miner.latency_score)
+        event.reliability_scores.append(miner.reliability_score)
+        event.distribution_scores.append(miner.distribution_score)
 
         # Send the score details to the miner
         response: List[protocol.Score] = await self.dendrite(
@@ -195,11 +190,11 @@ async def challenge_data(self):
             synapse=protocol.Score(
                 validator_uid=self.uid,
                 count=miner.ip_occurences,
-                availability=availability_score,
-                latency=latency_score,
-                reliability=reliability_score,
-                distribution=distribution_score,
-                score=rewards[idx],
+                availability=miner.availability_score,
+                latency=miner.latency_score,
+                reliability=miner.reliability_score,
+                distribution=miner.distribution_score,
+                score=miner.score,
             ),
             deserialize=True,
             timeout=DEFAULT_PROCESS_TIME,
@@ -212,6 +207,8 @@ async def challenge_data(self):
 
         # Save miner snapshot in database
         await update_statistics(self, miner)
+
+    bt.logging.trace(f"[{CHALLENGE_NAME}] Rewards: {rewards}")
 
     # Compute forward pass rewards
     scattered_rewards: torch.FloatTensor = (
