@@ -6,13 +6,7 @@ from typing import List
 
 from subnet import protocol
 from subnet.shared.subtensor import get_current_block
-from subnet.validator.miner import (
-    Miner,
-    replace_old_miner,
-    get_miner_ip_occurences,
-    add_new_miner,
-    move_miner,
-)
+from subnet.validator.miner import Miner
 from subnet.validator.event import EventSchema
 from subnet.validator.utils import get_next_uids, ping_uid
 from subnet.validator.bonding import update_statistics
@@ -35,37 +29,6 @@ DEFAULT_PROCESS_TIME = 5
 async def handle_synapse(self, uid: int):
     # Get the miner
     miner: Miner = next((miner for miner in self.miners if miner.uid == uid), None)
-
-    # Get general info
-    # ip = self.metagraph.axons[uid].ip
-    # hotkey = self.metagraph.hotkeys[uid]
-
-    # # Check a new miner registered to the subnet
-    # if miner is None:
-    #     miner = await add_new_miner(self, uid, ip, hotkey)
-    #     bt.logging.success(f"[{miner.uid}] New miner {hotkey} added to the list.")
-
-    # # Check a new miner is replacing an old one
-    # if miner.hotkey != hotkey:
-    #     old_hotkey = await replace_old_miner(self, ip, hotkey, miner)
-    #     bt.logging.success(
-    #         f"[{miner.uid}] Old miner {old_hotkey} has been replaced by the miner {hotkey}."
-    #     )
-
-    # # Check the miner has been moved to another VPS
-    # if miner.ip != ip:
-    #     previous_ip = move_miner(ip, miner)
-    #     bt.logging.success(
-    #         f"[{miner.uid}] Miner moved from {previous_ip} to {miner.ip}"
-    #     )
-
-    # # Check the miner's ip is not used by multiple miners (1 miner = 1 ip)
-    # ips = [miner.ip for miner in self.miners]
-    # miner.ip_occurences = get_miner_ip_occurences(miner.ip, ips)
-    # if miner.ip_occurences != 1:
-    #     bt.logging.warning(
-    #         f"[{uid}] {miner.ip_occurences} miner(s) associated with the ip"
-    #     )
 
     # Check the miner is available
     available = await ping_uid(self, miner.uid)
