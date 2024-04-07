@@ -7,10 +7,8 @@ from typing import List
 from subnet import protocol
 from subnet.shared.subtensor import get_current_block
 from subnet.validator.miner import Miner
-from subnet.validator.event import EventSchema
 from subnet.validator.utils import get_next_uids, ping_uid
 from subnet.validator.bonding import update_statistics
-from subnet.validator.localisation import get_country
 from subnet.validator.state import log_event
 from subnet.validator.score import (
     compute_availability_score,
@@ -87,23 +85,6 @@ async def challenge_data(self):
     start_time = time.time()
     bt.logging.debug(f"[{CHALLENGE_NAME}] Step starting")
 
-    event = EventSchema(
-        successful=[],
-        completion_times=[],
-        availability_scores=[],
-        latency_scores=[],
-        reliability_scores=[],
-        distribution_scores=[],
-        moving_averaged_scores=[],
-        countries=[],
-        block=self.subtensor.get_current_block(),
-        uids=[],
-        step_length=0.0,
-        best_uid=-1,
-        best_hotkey="",
-        rewards=[],
-    )
-
     # Select the miners
     validator_hotkey = self.metagraph.hotkeys[self.uid]
     uids = await get_next_uids(self, validator_hotkey, k=10)
@@ -119,12 +100,6 @@ async def challenge_data(self):
     rewards: torch.FloatTensor = torch.zeros(len(uids), dtype=torch.float32).to(
         self.device
     )
-
-    # Init wandb table data
-    availability_scores = []
-    latency_scores = []
-    reliability_scores = []
-    distribution_scores = []
 
     bt.logging.info(f"[{CHALLENGE_NAME}] Starting evaluation")
 
@@ -142,28 +117,24 @@ async def challenge_data(self):
 
         # Compute score for availability
         miner.availability_score = compute_availability_score(miner)
-        availability_scores.append(miner.availability_score)
         bt.logging.debug(
             f"[{CHALLENGE_NAME}][{miner.uid}] Availability score {miner.availability_score}"
         )
 
         # Compute score for latency
         miner.latency_score = compute_latency_score(self.country, miner, self.miners)
-        latency_scores.append(miner.latency_score)
         bt.logging.debug(
             f"[{CHALLENGE_NAME}][{miner.uid}] Latency score {miner.latency_score}"
         )
 
         # Compute score for reliability
         miner.reliability_score = await compute_reliability_score(miner)
-        reliability_scores.append(miner.reliability_score)
         bt.logging.debug(
             f"[{CHALLENGE_NAME}][{miner.uid}] Reliability score {miner.reliability_score}"
         )
 
         # Compute score for distribution
         miner.distribution_score = compute_distribution_score(miner, self.miners)
-        distribution_scores.append((miner.uid, miner.distribution_score))
         bt.logging.debug(
             f"[{CHALLENGE_NAME}][{miner.uid}] Distribution score {miner.distribution_score}"
         )
@@ -172,17 +143,6 @@ async def challenge_data(self):
         miner.score = compute_final_score(miner)
         rewards[idx] = miner.score
         bt.logging.info(f"[{CHALLENGE_NAME}][{miner.uid}] Final score {miner.score}")
-
-        # Log the event data for this specific challenge
-        event.uids.append(miner.uid)
-        event.countries.append(miner.country)
-        event.successful.append(miner.verified)
-        event.completion_times.append(miner.process_time)
-        event.rewards.append(miner.score)
-        event.availability_scores.append(miner.availability_score)
-        event.latency_scores.append(miner.latency_score)
-        event.reliability_scores.append(miner.reliability_score)
-        event.distribution_scores.append(miner.distribution_score)
 
         # Send the score details to the miner
         response: List[protocol.Score] = await self.dendrite(
@@ -228,21 +188,13 @@ async def challenge_data(self):
     self.moving_averaged_scores = alpha * scattered_rewards + (
         1 - alpha
     ) * self.moving_averaged_scores.to(self.device)
-    event.moving_averaged_scores = self.moving_averaged_scores.tolist()
     bt.logging.trace(
         f"[{CHALLENGE_NAME}] Updated moving avg scores: {self.moving_averaged_scores}"
     )
 
     # Display step time
     forward_time = time.time() - start_time
-    event.step_length = forward_time
     bt.logging.debug(f"[{CHALLENGE_NAME}] Step finished in {forward_time:.2f}s")
 
-    # Determine the best UID based on rewards
-    if event.rewards:
-        best_index = max(range(len(event.rewards)), key=event.rewards.__getitem__)
-        event.best_uid = event.uids[best_index]
-        event.best_hotkey = self.metagraph.hotkeys[event.best_uid]
-
     # Log event
-    log_event(self, event)
+    log_event(self, uids, forward_time)
