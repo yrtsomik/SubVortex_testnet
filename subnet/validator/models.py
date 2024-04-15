@@ -14,6 +14,7 @@ class Miner:
     challenge_attempts: int = 0
     process_time: float = 0
     verified: bool = False
+    misbehaving: bool = False
 
     def __init__(
         self,

@@ -94,6 +94,9 @@ async def challenge_data(self):
     uids = await get_next_uids(self, val_hotkey)
     bt.logging.debug(f"[{CHALLENGE_NAME}] Available uids {uids}")
 
+    # Get the misbehavior miners
+    misbehavior_uids = self.monitor.get_misbehavior_uids()
+
     # Execute the challenges
     tasks = []
     for uid in uids:
@@ -113,6 +116,11 @@ async def challenge_data(self):
         miner: Miner = next((miner for miner in self.miners if miner.uid == uid), None)
 
         bt.logging.info(f"[{CHALLENGE_NAME}][{miner.uid}] Computing score...")
+
+        # Check if the miner is misbehaving
+        miner.misbehaving = miner.uid in misbehavior_uids
+        if miner.misbehaving:
+            bt.logging.warning(f"[{CHALLENGE_NAME}][{miner.uid}] Misbehavior detected")
 
         # Check the miner's ip is not used by multiple miners (1 miner = 1 ip)
         if miner.ip_occurences != 1:

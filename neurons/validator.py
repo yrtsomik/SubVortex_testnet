@@ -33,6 +33,7 @@ from subnet.shared.mock import MockMetagraph, MockDendrite, MockSubtensor
 
 from subnet.validator.config import config, check_config, add_args
 from subnet.validator.localisation import get_country, get_localisation
+from subnet.validator.misbehavior import MisbehaviorMonitor
 from subnet.validator.forward import forward
 from subnet.validator.models import Miner
 from subnet.validator.miner import get_all_miners
@@ -78,6 +79,7 @@ class Validator:
     subtensor: "bt.subtensor"
     wallet: "bt.wallet"
     metagraph: "bt.metagraph"
+    monitor: MisbehaviorMonitor
 
     def __init__(self, config=None):
         base_config = copy.deepcopy(config or Validator.config())
@@ -190,6 +192,9 @@ class Validator:
         # Load the state
         load_state(self)
 
+        self.monitor = MisbehaviorMonitor()
+        self.monitor.start()
+
         try:
             while 1:
                 start_epoch = time.time()
@@ -218,7 +223,9 @@ class Validator:
                 async def run_forward():
                     coroutines = [
                         forward(self)
-                        for _ in range(1) # IMPORTANT: do not change it. we are going to work to make it concurrent tasks asap!
+                        for _ in range(
+                            1
+                        )  # IMPORTANT: do not change it. we are going to work to make it concurrent tasks asap!
                     ]
                     await asyncio.gather(*coroutines)
 
@@ -270,6 +277,10 @@ class Validator:
 
         # After all we have to ensure subtensor connection is closed properly
         finally:
+            if self.monitor:
+                self.monitor.stop()
+                self.monitor.join()
+
             if hasattr(self, "subtensor"):
                 bt.logging.debug("Closing subtensor connection")
                 self.subtensor.close()
