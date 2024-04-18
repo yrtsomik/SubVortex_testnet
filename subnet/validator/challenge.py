@@ -10,6 +10,7 @@ from subnet.validator.synapse import send_scope
 from subnet.validator.utils import (
     get_next_uids,
     ping_uid,
+    deregister_suspicious_uid,
 )
 from subnet.validator.bonding import update_statistics
 from subnet.validator.state import log_event
@@ -94,6 +95,10 @@ async def challenge_data(self):
     uids = await get_next_uids(self, val_hotkey)
     bt.logging.debug(f"[{CHALLENGE_NAME}] Available uids {uids}")
 
+    # Get the misbehavior miners
+    suspicious_uids = self.monitor.get_suspicious_uids()
+    bt.logging.debug(f"[{CHALLENGE_NAME}] Suspicious uids {suspicious_uids}")
+
     # Execute the challenges
     tasks = []
     for uid in uids:
@@ -114,8 +119,13 @@ async def challenge_data(self):
 
         bt.logging.info(f"[{CHALLENGE_NAME}][{miner.uid}] Computing score...")
 
+        # Check if the miner is suspicious
+        miner.suspicious = miner.uid in suspicious_uids and miner.verified
+        if miner.suspicious:
+            bt.logging.warning(f"[{CHALLENGE_NAME}][{miner.uid}] Miner is suspicious")
+
         # Check the miner's ip is not used by multiple miners (1 miner = 1 ip)
-        if miner.ip_occurences != 1:
+        if miner.has_ip_conflicts:
             bt.logging.warning(
                 f"[{CHALLENGE_NAME}][{miner.uid}] {miner.ip_occurences} miner(s) associated with the ip"
             )
@@ -171,13 +181,16 @@ async def challenge_data(self):
 
     # Update moving_averaged_scores with rewards produced by this step.
     # alpha of 0.05 means that each new score replaces 5% of the weight of the previous weights
-    alpha: float = 0.05
+    alpha: float = 0.1
     self.moving_averaged_scores = alpha * scattered_rewards + (
         1 - alpha
     ) * self.moving_averaged_scores.to(self.device)
     bt.logging.trace(
         f"[{CHALLENGE_NAME}] Updated moving avg scores: {self.moving_averaged_scores}"
     )
+
+    # Suspicious miners - moving weight to 0 for deregistration
+    deregister_suspicious_uid(self)
 
     # Display step time
     forward_time = time.time() - start_time
