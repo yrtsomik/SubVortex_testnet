@@ -18,12 +18,14 @@ from subnet.validator.database import (
 )
 
 
-def get_miner_ip_occurences(ip: str, ips: List[str]):
+def get_miner_ip_occurences(miner: Miner, miners: List[Miner]):
     """
     Return the number of miners using the same ip
     """
-    count = sum(1 for item in ips if item == ip)
-    return count or 1
+    # exclude not owner miner in the computation as we do not want to penalised
+    # good miner if their ip has been taken by someone maliscious
+    ips = [x.ip for x in miners if x.ip == miner.ip and x.owner]
+    return len(ips)
 
 
 async def get_all_miners(self) -> List[Miner]:
@@ -32,14 +34,12 @@ async def get_all_miners(self) -> List[Miner]:
     """
     miners: List[Miner] = []
 
-    ips = [axon.ip for axon in self.metagraph.axons]
+    # ips = [axon.ip for axon in self.metagraph.axons]
 
+    bt.logging.debug("get_all_miners() load miners")
     uids = get_available_uids(self)
     for uid in uids:
         axon = self.metagraph.axons[uid]
-
-        # Check there are not more than 1 miner associated with the ip
-        ip_occurences = get_miner_ip_occurences(axon.ip, ips)
 
         statistics = await get_hotkey_statistics(axon.hotkey, self.database)
         if statistics is None:
@@ -48,7 +48,6 @@ async def get_all_miners(self) -> List[Miner]:
                 ip=axon.ip,
                 hotkey=axon.hotkey,
                 country=get_country(axon.ip),
-                ip_occurences=ip_occurences,
             )
             await update_hotkey_statistics(axon.hotkey, miner.snapshot, self.database)
         else:
@@ -58,6 +57,7 @@ async def get_all_miners(self) -> List[Miner]:
                 axon.ip
             )
             verified = get_field_value(statistics.get(b"verified"), "0")
+            owner = get_field_value(statistics.get(b"owner"), "1")
             score = get_field_value(statistics.get(b"score"), 0)
             availability_score = get_field_value(
                 statistics.get(b"availability_score"), 0
@@ -78,11 +78,11 @@ async def get_all_miners(self) -> List[Miner]:
             miner = Miner(
                 uid=uid,
                 ip=axon.ip,
-                ip_occurences=ip_occurences,
                 hotkey=axon.hotkey,
                 version=version,
                 country=country,
                 verified=verified == "1",
+                owner=owner == "1",
                 score=score,
                 availability_score=availability_score,
                 latency_score=latency_score,
@@ -142,23 +142,12 @@ async def resync_miners(self):
 
     # Focus on the changes in the metagraph
     bt.logging.info("resync_miners() processing metagraph changes")
-    for uid, axon in enumerate(self.metagraph.axons):
+    uids = get_available_uids(self)
+    for uid in uids:
         # Get details
-        ip = axon.ip
+        axon = self.metagraph.axons[uid]
         hotkey = self.metagraph.hotkeys[uid]
-
-        is_available = check_uid_availability(
-            self.metagraph, uid, self.config.neuron.vpermit_tao_limit
-        )
-        if not is_available:
-            miners = [miner for miner in self.miners if miner.uid != uid]
-            if len(miners) < len(self.miners):
-                bt.logging.success(
-                    f"[{miner.uid}] Miner {hotkey} hase been removed from the list."
-                )
-                self.miners = miners
-
-            continue
+        ip = axon.ip
 
         miner: Miner = next((miner for miner in self.miners if miner.uid == uid), None)
 
@@ -180,13 +169,6 @@ async def resync_miners(self):
             bt.logging.success(
                 f"[{miner.uid}] Miner moved from {previous_ip} to {miner.ip}"
             )
-
-    # Focus on impacts resulting of these changes
-    bt.logging.debug("resync_miners() refreshing ip occurences")
-    ips = [miner.ip for miner in self.miners]
-    for miner in self.miners:
-        # Refresh the miners ip occurrences
-        miner.ip_occurences = get_miner_ip_occurences(miner.ip, ips)
 
     bt.logging.debug("resync_miners() refreshing scores")
     for miner in self.miners:

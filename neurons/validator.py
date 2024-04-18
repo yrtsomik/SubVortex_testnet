@@ -25,7 +25,7 @@ import bittensor as bt
 from typing import List
 from traceback import print_exception
 
-from subnet.monitor.monitor_process import MonitorProcess
+from subnet.monitor.monitor import Monitor
 
 from subnet.shared.checks import check_registration
 from subnet.shared.utils import get_redis_password
@@ -193,12 +193,9 @@ class Validator:
         load_state(self)
 
         # Monitor miners
-        monitor_process = MonitorProcess()
-        monitor_process.start()
+        self.monitor = Monitor()
+        self.monitor.start()
         bt.logging.debug(f"Monitoring started")
-
-        # Get the monitor object
-        self.monitor = monitor_process.monitor
 
         try:
             while 1:
@@ -282,8 +279,8 @@ class Validator:
 
         # After all we have to ensure subtensor connection is closed properly
         finally:
-            if monitor_process:
-                monitor_process.join()
+            if self.monitor:
+                self.monitor.join()
 
             if hasattr(self, "subtensor"):
                 bt.logging.debug("Closing subtensor connection")
