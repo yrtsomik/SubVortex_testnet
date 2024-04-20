@@ -45,6 +45,8 @@ class Monitor(threading.Thread):
                 if self.last_modified and last_modified == self.last_modified:
                     continue
 
+                self.last_modified = last_modified
+
                 # Update the list
                 with self._lock:
                     self._data = data
