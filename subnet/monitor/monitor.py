@@ -39,7 +39,7 @@ class Monitor(threading.Thread):
 
                 # Load the data
                 data = response.json()
-                last_modified = data.get("last_modified")
+                last_modified = data.get("last-modified")
 
                 # Check if data changed
                 if self.last_modified and last_modified == self.last_modified:
