@@ -39,9 +39,10 @@ class Monitor(threading.Thread):
 
                 # Load the data
                 data = response.json()
+                last_modified = data.get("last_modified")
 
                 # Check if data changed
-                if data == self._data:
+                if self.last_modified and last_modified == self.last_modified:
                     continue
 
                 # Update the list
