@@ -29,6 +29,7 @@ from subnet.protocol import Score
 from subnet.shared.checks import check_registration
 
 from subnet import __version__ as THIS_VERSION
+from subnet.miner.firewall import Firewall
 from subnet.miner import run
 from subnet.miner.config import (
     config,
@@ -138,7 +139,7 @@ class Miner:
         number_of_miners = len(
             [axon for axon in self.metagraph.axons if self.axon.external_ip == axon.ip]
         )
-        if number_of_miners > 0:
+        if False and number_of_miners > 0:
             bt.logging.error(
                 "At least one other miner is using that ip. Please move your miner or change your VPS as it may be compromised."
             )
@@ -260,9 +261,14 @@ def run_miner():
     with the Bittensor network.
     """
 
-    Miner().run_in_background_thread()
-
+    firewall = None
     try:
+        miner = Miner()
+        miner.run_in_background_thread()
+
+        firewall = Firewall(miner.subtensor, miner.metagraph)
+        firewall.start()
+
         while 1:
             time.sleep(1)
     except KeyboardInterrupt:
@@ -272,6 +278,9 @@ def run_miner():
         bt.logging.error(traceback.format_exc())
         bt.logging.error(f"Unhandled exception: {e}")
         sys.exit(1)
+    finally:
+        if firewall:
+            firewall.stop()
 
 
 if __name__ == "__main__":

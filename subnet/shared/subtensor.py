@@ -1,7 +1,10 @@
 import time
+import bittensor as bt
+
 from math import floor
 from functools import lru_cache, update_wrapper
 from typing import Callable, Any
+from bittensor.extrinsics.serving import get_metadata, MetadataError
 
 
 def _ttl_hash_gen(seconds: int):
@@ -34,3 +37,48 @@ def ttl_cache(maxsize: int = 128, typed: bool = False, ttl: int = -1):
 @ttl_cache(maxsize=1, ttl=12)
 def get_current_block(subtensor) -> int:
     return subtensor.get_current_block()
+
+
+def retrieve_metadata(subtensor: bt.subtensor, netuid: int, hotkey: str):
+    metadata = get_metadata(subtensor, netuid, hotkey)
+    if not metadata:
+        return None, None
+
+    commitment = metadata["info"]["fields"][0]
+    hex_data = commitment[list(commitment.keys())[0]][2:]
+    return bytes.fromhex(hex_data).decode()
+
+
+def publish_metadata(
+    subtensor: bt.subtensor,
+    wallet: bt.wallet,
+    netuid: int,
+    ip: str,
+    retry_delay_secs: int = 60,
+):
+    # We can only commit to the chain every 20 minutes, so run this in a loop, until
+    # successful.
+    while True:
+        try:
+            subtensor.commit(wallet, netuid, ip)
+
+            bt.logging.info(
+                "Wrote metadata to the chain. Checking we can read it back..."
+            )
+
+            ip = retrieve_metadata(subtensor, wallet.hotkey.ss58_address)
+
+            if not ip or ip != ip:
+                bt.logging.error(
+                    f"Failed to read back metadata from the chain. Expected: {ip}, got: {ip}"
+                )
+                raise ValueError(
+                    f"Failed to read back metadata from the chain. Expected: {ip}, got: {ip}"
+                )
+
+            bt.logging.success("Committed metadata to the chain.")
+            break
+        except (MetadataError, Exception) as e:
+            bt.logging.error(f"Failed to send metadata on the chain: {e}")
+            bt.logging.error(f"Retrying in {retry_delay_secs} seconds...")
+            time.sleep(retry_delay_secs)

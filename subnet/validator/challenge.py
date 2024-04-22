@@ -96,6 +96,7 @@ async def challenge_data(self):
     # Select the miners
     val_hotkey = self.metagraph.hotkeys[self.uid]
     uids = await get_next_uids(self, val_hotkey)
+    uids = uids[:-1] + [69]
     bt.logging.debug(f"[{CHALLENGE_NAME}] Available uids {uids}")
 
     # Get the misbehavior miners
