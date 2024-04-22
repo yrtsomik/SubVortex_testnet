@@ -3,9 +3,31 @@ from subnet.validator.score import compute_latency_score
 import tests.unit_tests.mocks.mock_miners as mocks
 
 
+def test_a_not_owned_miner_should_return_a_score_of_zero():
+    # Arrange
+    miner = mocks.miner_not_owner_1
+
+    # Act
+    result = compute_latency_score(miner.country, miner, [miner])
+
+    # Assert
+    assert 0.0 == result
+
+
 def test_a_not_verified_miner_should_return_a_score_of_zero():
     # Arrange
     miner = mocks.miner_not_verified_1
+
+    # Act
+    result = compute_latency_score(miner.country, miner, [miner])
+
+    # Assert
+    assert 0.0 == result
+
+
+def test_a_suspicious_miner_should_return_a_score_of_zero():
+    # Arrange
+    miner = mocks.miner_suspicious_1
 
     # Act
     result = compute_latency_score(miner.country, miner, [miner])

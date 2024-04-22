@@ -28,6 +28,7 @@ class Miner:
         version="0.0.0",
         verified=False,
         owner=True,
+        suspicious=False,
         score=0,
         availability_score=0,
         latency_score=0,
@@ -44,7 +45,8 @@ class Miner:
         self.ip_occurences = ip_occurences
         self.version = version or "0.0.0"
         self.country = country or ""
-        self.verified = verified or False
+        self.verified = verified if verified is not None else False
+        self.suspicious = suspicious if suspicious is not None else False
         self.owner = owner if owner is not None else True
         self.score = float(score or 0)
         self.availability_score = float(availability_score or 0)
@@ -61,6 +63,7 @@ class Miner:
         self.version = "0.0.0"
         self.country = country or ""
         self.verified = False
+        self.suspicious = False
         self.owner = True
         self.score = 0
         self.availability_score = 0

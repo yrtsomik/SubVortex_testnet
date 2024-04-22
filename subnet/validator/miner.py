@@ -8,7 +8,7 @@ from subnet.validator.score import (
     compute_latency_score,
     compute_final_score,
 )
-from subnet.validator.utils import get_available_uids, check_uid_availability
+from subnet.validator.utils import get_available_uids
 from subnet.validator.localisation import get_country
 from subnet.validator.database import (
     get_hotkey_statistics,

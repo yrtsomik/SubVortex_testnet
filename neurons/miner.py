@@ -126,7 +126,7 @@ class Miner:
             wallet=self.wallet, config=self.config, external_ip=bt.net.get_external_ip()
         )
         bt.logging.info(f"Axon {self.axon}")
-        
+
         # Attach determiners which functions are called when servicing a request.
         bt.logging.info("Attaching forward functions to axon.")
         self.axon.attach(
@@ -134,22 +134,22 @@ class Miner:
             blacklist_fn=self.blacklist_score,
         )
 
+        # Check if there is already a miner using the same ip
+        number_of_miners = len(
+            [axon for axon in self.metagraph.axons if self.axon.external_ip == axon.ip]
+        )
+        if number_of_miners > 0:
+            bt.logging.error(
+                "At least one other miner is using that ip. Please move your miner or change your VPS as it may be compromised."
+            )
+            sys.exit(1)
+
         # Serve passes the axon information to the network + netuid we are hosting on.
         # This will auto-update if the axon port of external ip have changed.
         bt.logging.info(
             f"Serving axon {self.axon} on network: {self.subtensor.chain_endpoint} with netuid: {self.config.netuid}"
         )
         self.axon.serve(netuid=self.config.netuid, subtensor=self.subtensor)
-        
-        # Check there is not another miner running on the machine
-        number_of_miners = len(
-            [axon for axon in self.metagraph.axons if self.axon.external_ip == axon.ip]
-        )
-        if number_of_miners > 1:
-            bt.logging.error(
-                "At least one miner is already running on this machine. If you run more than one miner you will penalise all of your miners until you get de-registered or start each miner on a unique machine"
-            )
-            sys.exit(1)
 
         # Start  starts the miner's axon, making it active on the network.
         bt.logging.info(f"Starting axon server on port: {self.config.axon.port}")
@@ -184,7 +184,7 @@ class Miner:
         bt.logging.success(f"[{validator_uid}] Score {synapse.score}")
 
         synapse.version = THIS_VERSION
-        
+
         return synapse
 
     def blacklist_score(self, synapse: Score) -> typing.Tuple[bool, str]:

@@ -54,6 +54,9 @@ async def handle_synapse(self, uid: int):
             type_registry=bt.__type_registry__,
         )
 
+        # Set the timeout
+        substrate.websocket.timeout = 5
+
         # Start the timer
         start_time = time.time()
 
@@ -68,9 +71,9 @@ async def handle_synapse(self, uid: int):
         # Get the current block from the validator subtensor
         validator_block = get_current_block(self.subtensor)
 
-        # Check both blocks are the same
+        # Check both blocks are the same +/- 1 block
         verified = (
-            miner_block == validator_block or (validator_block - miner_block) <= 1
+            miner_block == validator_block or abs(validator_block - miner_block) <= 1
         )
         if not verified:
             reason = f"Subtensor is not verified - {validator_block}/{miner_block}"
@@ -130,6 +133,12 @@ async def challenge_data(self):
         miner.suspicious = miner.uid in suspicious_uids and miner.verified
         if miner.suspicious:
             bt.logging.warning(f"[{CHALLENGE_NAME}][{miner.uid}] Miner is suspicious")
+
+        # Check if the miner/subtensor are verified
+        if not miner.owner:
+            bt.logging.warning(
+                f"[{CHALLENGE_NAME}][{miner.uid}] Miner ownership is suspicious"
+            )
 
         # Check if the miner/subtensor are verified
         if not miner.verified:
