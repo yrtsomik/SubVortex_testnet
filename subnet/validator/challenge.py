@@ -73,7 +73,7 @@ async def handle_synapse(self, uid: int):
             miner_block == validator_block or (validator_block - miner_block) <= 1
         )
         if not verified:
-            reason = "Subtensor is not verified"
+            reason = f"Subtensor is not verified - {validator_block}/{miner_block}"
     except Exception as ex:
         verified = False
         reason = "Subtensor is not verified"
@@ -107,7 +107,7 @@ async def challenge_data(self):
         reasons = await asyncio.gather(*tasks)
 
     # Focus on impacts resulting of these changes
-    bt.logging.debug("resync_miners() refreshing ip occurences")
+    bt.logging.debug(f"[{CHALLENGE_NAME}] Refreshing ip occurences")
     for miner in self.miners:
         # Refresh the miners ip occurrences
         miner.ip_occurences = get_miner_ip_occurences(miner, self.miners)

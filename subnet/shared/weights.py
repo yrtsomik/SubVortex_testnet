@@ -27,7 +27,7 @@ def should_set_weights(
     # Check validator has enough state to set weight
     validator_stake = self.metagraph.S[self.uid]
     weight_min_stake = get_weights_min_stake(self.subtensor.substrate)
-    has_enough_stake = validator_stake > weight_min_stake
+    has_enough_stake = validator_stake >= weight_min_stake
     if has_enough_stake == False:
         bt.logging.warning(
             f"Not enough stake t{validator_stake} to set weight, require a minimum of t{weight_min_stake}. Please stake more if you do not want to be de-registered!"
