@@ -210,12 +210,13 @@ async def resync_miners(self):
         miner.ip_occurences = get_miner_ip_occurences(miner.ip, ips)
 
     bt.logging.debug("resync_miners() refreshing scores")
+    locations = self.country_service.get_locations()
     for miner in self.miners:
         # Refresh the availability score
         miner.availability_score = compute_availability_score(miner)
 
         # Refresh latency score
-        miner.latency_score = compute_latency_score(self.country, miner, self.miners)
+        miner.latency_score = compute_latency_score(self.country_code, miner, self.miners, locations)
 
         # Refresh the distribution score
         miner.distribution_score = compute_distribution_score(miner, self.miners)

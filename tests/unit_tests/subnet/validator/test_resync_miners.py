@@ -1,7 +1,7 @@
 import copy
 import pytest
 import unittest
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 from tests.unit_tests.mocks import mock_redis, mock_country
 from tests.unit_tests.utils.metagraph import (
@@ -33,6 +33,15 @@ default_axons_details = [
     {"ip": "88.30.24.99", "country": "ES"},
     {"ip": "9.91.241.48", "country": "ES"},
 ]
+
+locations = {
+    "US": {"country": "United States", "latitude": 37.09024, "longitude": -95.712891},
+    "SG": {"country": "Singapore", "latitude": 1.352083, "longitude": 103.819836},
+    "BR": {"country": "Brazil", "latitude": -14.235004, "longitude": -51.92528},
+    "ES": {"country": "Spain", "latitude": 40.463667, "longitude": -3.74922},
+    "KR": {"country": "South Korea", "latitude": 35.907757, "longitude": 127.766922},
+    "IR": {"country": "Iran", "latitude": 32.427908, "longitude": 53.688046},
+}
 
 
 class TestResyncMiners(unittest.IsolatedAsyncioTestCase):
@@ -138,6 +147,9 @@ class TestResyncMiners(unittest.IsolatedAsyncioTestCase):
             self.validator.metagraph.hotkeys
         )
 
+        self.validator.country_service = MagicMock()
+        self.validator.country_service.get_locations.return_value = locations
+
         sync_metagraph(self.validator, axons_details)
         miners = await get_all_miners(self.validator)
         self.validator.miners = copy.deepcopy(miners)
@@ -184,6 +196,9 @@ class TestResyncMiners(unittest.IsolatedAsyncioTestCase):
         self.validator.database = mock_redis.mock_get_statistics(
             self.validator.metagraph.hotkeys
         )
+
+        self.validator.country_service = MagicMock()
+        self.validator.country_service.get_locations.return_value = locations
 
         sync_metagraph(self.validator, axons_details)
         miners = await get_all_miners(self.validator)
@@ -233,6 +248,9 @@ class TestResyncMiners(unittest.IsolatedAsyncioTestCase):
             self.validator.metagraph.hotkeys
         )
 
+        self.validator.country_service = MagicMock()
+        self.validator.country_service.get_locations.return_value = locations
+
         sync_metagraph(self.validator, axons_details)
         miners = await get_all_miners(self.validator)
         self.validator.miners = copy.deepcopy(miners)
@@ -279,6 +297,9 @@ class TestResyncMiners(unittest.IsolatedAsyncioTestCase):
         self.validator.database = mock_redis.mock_get_statistics(
             self.validator.metagraph.hotkeys
         )
+
+        self.validator.country_service = MagicMock()
+        self.validator.country_service.get_locations.return_value = locations
 
         sync_metagraph(self.validator, axons_details)
         miners = await get_all_miners(self.validator)

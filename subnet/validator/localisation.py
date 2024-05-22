@@ -11,21 +11,6 @@ IPINFO_IO_BASE_URL = "https://ipinfo.io"
 countries = {}
 
 
-def get_localisation(country_code: str):
-    """
-    Get the longitude and latitude of the country
-    """
-    global countries
-    if len(countries) == 0:
-        current_dir = os.path.dirname(os.path.realpath(__file__))
-        file_path = os.path.join(current_dir, "..", "localisation.json")
-
-        with open(file_path, "r") as f:
-            countries = json.load(f)
-
-    return countries.get(country_code)
-
-
 def get_country_by_country_is(ip: str):
     """
     Get the country code of the ip

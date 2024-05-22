@@ -106,6 +106,9 @@ async def challenge_data(self):
     suspicious_uids = self.monitor.get_suspicious_uids()
     bt.logging.debug(f"[{CHALLENGE_NAME}] Suspicious uids {suspicious_uids}")
 
+    # Get the locations
+    locations = self.country_service.get_locations()
+
     # Execute the challenges
     tasks = []
     reasons = []
@@ -151,7 +154,9 @@ async def challenge_data(self):
         )
 
         # Compute score for latency
-        miner.latency_score = compute_latency_score(self.country, miner, self.miners)
+        miner.latency_score = compute_latency_score(
+            self.country_code, miner, self.miners, locations
+        )
         bt.logging.debug(
             f"[{CHALLENGE_NAME}][{miner.uid}] Latency score {miner.latency_score}"
         )
