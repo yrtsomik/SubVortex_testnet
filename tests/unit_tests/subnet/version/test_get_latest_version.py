@@ -14,7 +14,7 @@ class TestGithubController(unittest.IsolatedAsyncioTestCase):
         mock_open.return_value.__enter__.return_value.read.return_value = ""
 
         mock_request.return_value.status_code = 200
-        mock_request.return_value.json.return_value = {"tag_name": "v2.2.3"}
+        mock_request.return_value.json.return_value = [{"name": "v2.2.3"}]
 
         github = Github()
 
@@ -33,7 +33,7 @@ class TestGithubController(unittest.IsolatedAsyncioTestCase):
         mock_open.return_value.__enter__.return_value.read.return_value = ""
 
         mock_request.return_value.status_code = 300
-        mock_request.return_value.json.return_value = {"tag_name": "v2.2.3"}
+        mock_request.return_value.json.return_value = [{"name": "v2.2.3"}]
 
         github = Github()
 
@@ -52,7 +52,7 @@ class TestGithubController(unittest.IsolatedAsyncioTestCase):
         mock_open.return_value.__enter__.return_value.read.return_value = ""
 
         mock_request.return_value.status_code = 200
-        mock_request.return_value.json.return_value = {"tag_name": "v2.2.3"}
+        mock_request.return_value.json.return_value = [{"name": "v2.2.3"}]
 
         github = Github()
 
@@ -64,7 +64,7 @@ class TestGithubController(unittest.IsolatedAsyncioTestCase):
 
         # Arrange
         mock_request.return_value.status_code = 300
-        mock_request.return_value.json.return_value = {"tag_name": "v2.2.4"}
+        mock_request.return_value.json.return_value = [{"name": "v2.2.4"}]
 
         # Act
         result2 = github.get_latest_version()
@@ -80,7 +80,7 @@ class TestGithubController(unittest.IsolatedAsyncioTestCase):
         mock_open.return_value.__enter__.return_value.read.return_value = ""
 
         mock_request.return_value.status_code = 200
-        mock_request.return_value.json.return_value = {"tag_name": "v2.2.3"}
+        mock_request.return_value.json.return_value = [{"name": "v2.2.3"}]
 
         github = Github()
 

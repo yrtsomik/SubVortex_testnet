@@ -8,8 +8,8 @@ from subnet.version.interpreter_controller import Interpreter
 class BaseVersionControl:
     _lock = threading.Lock()
 
-    def __init__(self) -> None:
-        self.github = Github()
+    def __init__(self, dev: bool = False) -> None:
+        self.github = Github(dev=dev)
         self.interpreter = Interpreter()
         self._upgrading = False
         self.must_restart = False

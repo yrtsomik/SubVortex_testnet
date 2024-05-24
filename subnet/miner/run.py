@@ -42,7 +42,7 @@ def run(self):
 
     netuid = self.config.netuid
 
-    self.version_control = VersionControl()
+    self.version_control = VersionControl(self.config.dev)
 
     # Keep a track of last upgrade check
     self.last_upgrade_check = 0

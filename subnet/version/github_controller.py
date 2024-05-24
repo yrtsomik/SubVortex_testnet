@@ -11,10 +11,13 @@ here = path.abspath(path.dirname(__file__))
 
 
 class Github:
-    def __init__(self, repo_owner="eclipsevortex", repo_name="SubVortex"):
+    def __init__(
+        self, repo_owner="eclipsevortex", repo_name="SubVortex", dev: bool = False
+    ):
         self.repo_owner = repo_owner
         self.repo_name = repo_name
         self.latest_version = None
+        self.dev = dev
 
     def get_version(self) -> str:
         with codecs.open(
@@ -32,12 +35,19 @@ class Github:
         Return the cached value if any errors
         """
         try:
-            url = f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/releases/latest"
+            url = (
+                f"https://api.github.com/repos/{self.repo_owner}/{self.repo_name}/tags"
+            )
             response = requests.get(url)
             if response.status_code != 200:
                 return self.latest_version
 
-            latest_version = response.json()["tag_name"]
+            tags = response.json()
+            if self.dev:
+                latest_version = next((tag['name'] for tag in tags if re.search(r'^v(\d+)\.(\d+)\.(\d+)$', tag['name'])), None)
+            else:
+                latest_version = next((tag['name'] for tag in tags if not re.search(r'^v(\d+)\.(\d+)\.(\d+)-alpha$', tag['name'])), None)
+
             self.latest_version = latest_version[1:]
             return self.latest_version
         except Exception:

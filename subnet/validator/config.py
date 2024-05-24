@@ -227,6 +227,12 @@ def add_args(cls, parser):
         help="True if the miner can be auto updated, false otherwise",
         default=False,
     )
+    parser.add_argument(
+        "--dev",
+        action="store_true", 
+        help="True to put the validator in development mode. Do not use it if you are not part of SubVortex as it is for testing things",
+        default=False,
+    )
 
     # Wandb args
     parser.add_argument(

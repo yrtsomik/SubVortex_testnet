@@ -201,7 +201,7 @@ class Validator:
 
         # Initi versioin control
         dump_path = self.config.database.redis_dump_path
-        self.version_control = VersionControl(self.database, dump_path)
+        self.version_control = VersionControl(self.database, dump_path, self.config.dev)
 
         # Init miners
         self.miners = await get_all_miners(self)

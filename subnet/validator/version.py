@@ -15,8 +15,8 @@ LAST_VERSION_BEFORE_AUTO_UPDATE = "2.2.0"
 
 
 class VersionControl(BaseVersionControl):
-    def __init__(self, database, dump_path: str):
-        super().__init__()
+    def __init__(self, database, dump_path: str, dev: bool = False):
+        super().__init__(dev)
         self.redis = Redis(database, dump_path)
 
     def restart(self):
