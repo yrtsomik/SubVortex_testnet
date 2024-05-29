@@ -61,6 +61,9 @@ def should_upgrade(auto_update: bool, last_upgrade_check: float):
 
 def load_json_file(file_path):
     try:
+        if not os.path.exists(file_path):
+            return None
+
         with open(file_path, "r") as file:
             config = json.load(file)
         return config
