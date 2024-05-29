@@ -90,8 +90,8 @@ class Firewall(threading.Thread):
         bt.logging.warning(ip_blocked["reason"])
 
         # Save the ip blocked in file for futher analysis
-        with open("ips_blocked.json", "a") as file:
-            file.write(json.dumps(ip_blocked) + "\n")
+        with open("ips_blocked.json", "w") as file:
+            file.write(json.dumps(self.ips_blocked))
 
     def remove_ip_blocked(self, ip: str, port: str):
         ip_blocked = next(
