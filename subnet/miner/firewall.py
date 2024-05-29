@@ -149,7 +149,7 @@ class Firewall(threading.Thread):
                 del self.ips_blocked[ip_src]
 
             # Forward the packet
-            send(packet)
+            send(packet, verbose=False)
 
     def run(self):
         # Start sniffing with the filter
