@@ -1,3 +1,4 @@
+import json
 import time
 import logging
 import threading
@@ -89,7 +90,7 @@ class Firewall(threading.Thread):
 
         # Save the ip blocked in file for futher analysis
         with open("ips_blocked.txt", "a") as file:
-            file.write(ip_blocked)
+            file.write(json.dumps(ip_blocked) + "\n")
 
     def detect_attacks(self, option: FirewallOptions):
         attacks_detected = []
