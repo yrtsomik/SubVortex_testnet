@@ -193,7 +193,8 @@ class Firewall(threading.Thread):
     def run(self):
         # Reload the previous ips blocked
         with open("ips_blocked.json", "r") as file:
-            self.ips_blocked = json.load(file)
+            self.ips_blocked = json.load(file) or []
+        bt.logging.debug(f"Loaded {len(self.ips_blocked)} blocked ip")
 
         # Start sniffing with the filter
         sniff(iface=self.interface, prn=self.packet_callback)
