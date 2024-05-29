@@ -81,7 +81,9 @@ class Firewall(threading.Thread):
         # Detect rate limit violations
         for ip, timestamps in self.packet_rate.items():
             recent_timestamps = [
-                t for t in timestamps if current_time - t < option.rate_limit_time_window
+                t
+                for t in timestamps
+                if current_time - t < option.rate_limit_time_window
             ]
             self.packet_rate[ip] = recent_timestamps
             if len(recent_timestamps) > option.rate_limit_packet_threshold:
@@ -95,17 +97,27 @@ class Firewall(threading.Thread):
 
         return attacks_detected
 
+    def log_blocked_packet(self, packet: Packet):
+        if IP in packet:
+            bt.logging.debug(f"Packet from {packet[IP].src} has been blocked")
+            return
+
+        bt.logging.debug(f"Packet has been blocked")
+
     def packet_callback(self, packet: Packet):
         if TCP not in packet:
             # Drop the packet
+            self.log_blocked_packet(packet)
             return
 
         if IP not in packet:
             # Drop the packet
+            self.log_blocked_packet(packet)
             return
 
         if packet[TCP].dport not in self.ports_to_forward:
             # Drop the packet
+            self.log_blocked_packet(packet)
             return
 
         if packet[TCP].dport not in self.ports_to_sniff:
