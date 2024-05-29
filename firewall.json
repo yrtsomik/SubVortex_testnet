@@ -1,0 +1,10 @@
+[
+    {
+        "8091": {
+            "ddos_time_window": 30,
+            "ddos_packet_threshold": 100,
+            "rate_limit_time_window": 5,
+            "rate_limit_packet_threshold": 20
+        }
+    }
+]

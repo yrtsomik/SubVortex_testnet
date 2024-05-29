@@ -27,9 +27,11 @@ import traceback
 from subnet.protocol import Score
 
 from subnet.shared.checks import check_registration
+from subnet.shared.utils import load_json_file
 
 from subnet import __version__ as THIS_VERSION
 from subnet.miner import run
+from subnet.miner.firewall import Firewall
 from subnet.miner.config import (
     config,
     check_config,
@@ -170,6 +172,19 @@ class Miner:
         # Init the event loop.
         self.loop = asyncio.get_event_loop()
 
+        # Firewall
+        if self.config.firewall.on:
+            bt.logging.debug(
+                f"Starting firewall on interface {self.config.firewall.interface} and ports {self.config.firewall.ports}"
+            )
+            self.firewall = Firewall(
+                self.config.firewall.interface,
+                self.config.firewall.ports,
+                self.config.firewall.ports_to_forward,
+                load_json_file(config) if self.config.firewall.config else None,
+            )
+            self.firewall.start()
+
         # Instantiate runners
         self.should_exit: bool = False
         self.is_running: bool = False
@@ -286,9 +301,16 @@ def run_miner():
         bt.logging.error(f"Unhandled exception: {e}")
         sys.exit(1)
     finally:
-        if miner:
-            bt.logging.info("Stopping axon")
-            miner.axon.stop()
+        if not miner:
+            return
+
+        if miner.firewall:
+            bt.logging.info("Stopping firewall")
+            miner.firewall.stop()
+            miner.firewall.join()
+
+        bt.logging.info("Stopping axon")
+        miner.axon.stop()
 
 
 if __name__ == "__main__":
