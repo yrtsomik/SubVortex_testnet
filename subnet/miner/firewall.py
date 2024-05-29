@@ -1,3 +1,4 @@
+import os
 import json
 import time
 import logging
@@ -192,8 +193,9 @@ class Firewall(threading.Thread):
 
     def run(self):
         # Reload the previous ips blocked
-        with open("ips_blocked.json", "r") as file:
-            self.ips_blocked = json.load(file) or []
+        if os.path.exists("ips_blocked.json"):
+            with open("ips_blocked.json", "r") as file:
+                self.ips_blocked = json.load(file) or []
         bt.logging.debug(f"Loaded {len(self.ips_blocked)} blocked ip")
 
         # Start sniffing with the filter
