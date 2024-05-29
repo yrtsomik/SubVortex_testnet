@@ -167,7 +167,7 @@ def add_args(cls, parser):
     )
     parser.add_argument(
         "--firewall.ports_to_forward",
-        type=str,
+        type=int,
         required=False,
         nargs="*",
         help="List of ports to forward but not to sniff",
