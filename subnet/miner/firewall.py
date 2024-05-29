@@ -47,6 +47,7 @@ class Firewall(threading.Thread):
         self.ports_to_sniff = ports_to_sniff
         self.ports_to_forward = list(set(ports_to_forward + ports_to_sniff))
         self.interface = interface
+        self.ips_blocked = defaultdict(list)
 
         self.options = options or {p: FirewallOptions() for p in ports_to_sniff}
 
@@ -97,37 +98,33 @@ class Firewall(threading.Thread):
 
         return attacks_detected
 
-    def log_blocked_packet(self, packet: Packet):
-        if IP in packet:
-            bt.logging.debug(f"Packet from {packet[IP].src} has been blocked")
-            return
-
-        bt.logging.debug(f"Packet has been blocked")
-
     def packet_callback(self, packet: Packet):
         if TCP not in packet:
             # Drop the packet
-            self.log_blocked_packet(packet)
             return
 
         if IP not in packet:
             # Drop the packet
-            self.log_blocked_packet(packet)
             return
+
+        # Get the source ip of the packet
+        ip_src = packet[IP].src
+        port_dest = packet[TCP].dport
 
         if packet[TCP].dport not in self.ports_to_forward:
             # Drop the packet
-            self.log_blocked_packet(packet)
+            if ip_src not in self.ips_blocked:
+                self.ips_blocked[ip_src] = (
+                    f"Destination port is not allowed {port_dest}"
+                )
+                bt.logging.warning(self.ips_blocked[ip_src])
+
             return
 
         if packet[TCP].dport not in self.ports_to_sniff:
             # Port to forward but not to sniff
             send(packet)
             return
-
-        # Get the source ip of the packet
-        ip_src = packet[IP].src
-        port_dest = packet[TCP].dport
 
         # Increment the number of packet for the ip
         self.packet_counts[ip_src].append(time.time())
@@ -145,6 +142,9 @@ class Firewall(threading.Thread):
             bt.logging.debug(f"Attack detected: {attacks}")
             return
         else:
+            if ip_src in self.ips_blocked:
+                del self.ips_blocked[ip_src]
+
             # Forward the packet
             send(packet)
 
