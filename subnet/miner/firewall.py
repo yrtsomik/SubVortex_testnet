@@ -37,7 +37,7 @@ class FirewallOptions:
 
 def message_builder(ip: str, port: str, type: str):
     if type == "port-disabled":
-        return f"Destination port is not allowed {port}, blocking ip {ip}"
+        return f"Destination port is not allowed {port}"
 
     return f"Ip {ip} with port {port} has been blocked"
 
@@ -72,7 +72,7 @@ class Firewall(threading.Thread):
         super().join()
         bt.logging.debug(f"Firewall stopped")
 
-    def log_ip_blocked(self, ip: str, port: str, type: str):
+    def add_ip_blocked(self, ip: str, port: str, type: str):
         ip_blocked = next(
             (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port),
             None,
@@ -89,8 +89,21 @@ class Firewall(threading.Thread):
         bt.logging.warning(ip_blocked["reason"])
 
         # Save the ip blocked in file for futher analysis
-        with open("ips_blocked.txt", "a") as file:
+        with open("ips_blocked.json", "a") as file:
             file.write(json.dumps(ip_blocked) + "\n")
+
+    def remove_ip_blocked(self, ip: str, port: str):
+        ip_blocked = next(
+            (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port),
+            None,
+        )
+        if not ip_blocked:
+            # Ip already blocked
+            return
+
+        # Save the ip blocked in file for futher analysis
+        with open("ips_blocked.json", "w") as file:
+            file.write(json.dumps(self.ips_blocked))
 
     def detect_attacks(self, option: FirewallOptions):
         attacks_detected = []
@@ -131,50 +144,56 @@ class Firewall(threading.Thread):
         return attacks_detected
 
     def packet_callback(self, packet: Packet):
-        if TCP not in packet:
-            # Drop the packet
-            return
+        try:
+            if TCP not in packet:
+                # Drop the packet
+                return
 
-        if IP not in packet:
-            # Drop the packet
-            return
+            if IP not in packet:
+                # Drop the packet
+                return
 
-        # Get the source ip of the packet
-        ip_src = packet[IP].src
-        port_dest = packet[TCP].dport
+            # Get the source ip of the packet
+            ip_src = packet[IP].src
+            port_dest = packet[TCP].dport
 
-        if packet[TCP].dport not in self.ports_to_forward:
-            # Drop the packet
-            self.log_ip_blocked(ip_src, port_dest, "port-disabled")
-            return
+            if packet[TCP].dport not in self.ports_to_forward:
+                # Drop the packet
+                self.add_ip_blocked(ip_src, port_dest, "port-disabled")
+                return
 
-        if packet[TCP].dport not in self.ports_to_sniff:
-            # Port to forward but not to sniff
-            send(packet, verbose=False)
-            return
+            if packet[TCP].dport not in self.ports_to_sniff:
+                # Port to forward but not to sniff
+                send(packet, verbose=False)
+                return
 
-        # Increment the number of packet for the ip
-        self.packet_counts[ip_src].append(time.time())
+            # Increment the number of packet for the ip
+            self.packet_counts[ip_src].append(time.time())
 
-        # Add the time of reception of the packet
-        self.packet_rate[ip_src].append(time.time())
+            # Add the time of reception of the packet
+            self.packet_rate[ip_src].append(time.time())
 
-        # Detect attacks
-        option = self.options.get(port_dest) or FirewallOptions()
-        attacks = self.detect_attacks(option)
+            # Detect attacks
+            option = self.options.get(port_dest) or FirewallOptions()
+            attacks = self.detect_attacks(option)
 
-        # Check if there are any attacks
-        if any(ip_src == attack[0] for attack in attacks):
-            # Drop the packet
-            bt.logging.debug(f"Attack detected: {attacks}")
-            return
-        else:
-            if ip_src in self.ips_blocked:
-                del self.ips_blocked[ip_src]
+            # Check if there are any attacks
+            if any(ip_src == attack[0] for attack in attacks):
+                # Drop the packet
+                bt.logging.debug(f"Attack detected: {attacks}")
+                return
+            else:
+                self.remove_ip_blocked(ip_src, port_dest, "port-disabled")
 
-            # Forward the packet
-            send(packet, verbose=False)
+                # Forward the packet
+                send(packet, verbose=False)
+        except Exception as err:
+            bt.logging.warning(f"Analysing packet failed: {err}")
 
     def run(self):
+        # Reload the previous ips blocked
+        with open("ips_blocked.json", "r") as file:
+            self.ips_blocked = json.load(file)
+
         # Start sniffing with the filter
         sniff(iface=self.interface, prn=self.packet_callback)
