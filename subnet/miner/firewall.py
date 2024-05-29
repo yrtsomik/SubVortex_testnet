@@ -37,7 +37,7 @@ class FirewallOptions:
 
 def message_builder(ip: str, port: str, type: str):
     if type == "port-disabled":
-        return (f"Destination port is not allowed {port}, blocking ip {ip}",)
+        return f"Destination port is not allowed {port}, blocking ip {ip}"
 
     return f"Ip {ip} with port {port} has been blocked"
 
