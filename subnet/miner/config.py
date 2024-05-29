@@ -146,8 +146,7 @@ def add_args(cls, parser):
     # Firewall
     parser.add_argument(
         "--firewall.on",
-        type=str,
-        required=False,
+        action="store_true",
         help="True to enable the firewall feature, False otherwise",
         default=False,
     )
