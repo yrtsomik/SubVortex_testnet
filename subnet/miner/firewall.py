@@ -10,6 +10,7 @@ from scapy.all import sniff, TCP, IP, Packet, send
 # Disalbe scapy logging
 logging.getLogger("scapy.runtime").setLevel(logging.CRITICAL)
 
+
 @dataclass
 class FirewallOptions:
     ddos_time_window: int = 30
@@ -33,6 +34,13 @@ class FirewallOptions:
     """
 
 
+def message_builder(ip: str, port: str, type: str):
+    if type == "port-disabled":
+        return (f"Destination port is not allowed {port}, blocking ip {ip}",)
+
+    return f"Ip {ip} with port {port} has been blocked"
+
+
 class Firewall(threading.Thread):
     def __init__(
         self,
@@ -50,7 +58,7 @@ class Firewall(threading.Thread):
         self.ports_to_sniff = ports_to_sniff
         self.ports_to_forward = list(set(ports_to_forward + ports_to_sniff))
         self.interface = interface
-        self.ips_blocked = defaultdict(list)
+        self.ips_blocked = []
 
         self.options = options or {p: FirewallOptions() for p in ports_to_sniff}
 
@@ -62,6 +70,26 @@ class Firewall(threading.Thread):
         self.stop_flag.set()
         super().join()
         bt.logging.debug(f"Firewall stopped")
+
+    def log_ip_blocked(self, ip: str, port: str, type: str):
+        ip_blocked = next(
+            (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port),
+            None,
+        )
+        if ip_blocked:
+            # Ip already blocked
+            return
+
+        # New ip blocked
+        ip_blocked = {"ip": ip, "port": port, "reason": message_builder(ip, port, type)}
+        self.ips_blocked.append(ip_blocked)
+
+        # Log the new ip blocked
+        bt.logging.warning(ip_blocked["reason"])
+
+        # Save the ip blocked in file for futher analysis
+        with open("ips_blocked.txt", "a") as file:
+            file.write(ip_blocked)
 
     def detect_attacks(self, option: FirewallOptions):
         attacks_detected = []
@@ -116,17 +144,12 @@ class Firewall(threading.Thread):
 
         if packet[TCP].dport not in self.ports_to_forward:
             # Drop the packet
-            if ip_src not in self.ips_blocked:
-                self.ips_blocked[ip_src] = (
-                    f"Destination port is not allowed {port_dest}, blocking ip {ip_src}"
-                )
-                bt.logging.warning(self.ips_blocked[ip_src])
-
+            self.log_ip_blocked(ip_src, port_dest, "port-disabled")
             return
 
         if packet[TCP].dport not in self.ports_to_sniff:
             # Port to forward but not to sniff
-            send(packet)
+            send(packet, verbose=False)
             return
 
         # Increment the number of packet for the ip
