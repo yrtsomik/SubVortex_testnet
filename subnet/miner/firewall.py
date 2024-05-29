@@ -115,7 +115,7 @@ class Firewall(threading.Thread):
             # Drop the packet
             if ip_src not in self.ips_blocked:
                 self.ips_blocked[ip_src] = (
-                    f"Destination port is not allowed {port_dest}"
+                    f"Destination port is not allowed {port_dest}, blocking ip {ip_src}"
                 )
                 bt.logging.warning(self.ips_blocked[ip_src])
 
