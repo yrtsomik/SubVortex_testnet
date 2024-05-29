@@ -1,4 +1,5 @@
 import time
+import logging
 import threading
 import bittensor as bt
 from typing import List
@@ -6,6 +7,8 @@ from collections import defaultdict
 from dataclasses import dataclass
 from scapy.all import sniff, TCP, IP, Packet, send
 
+# Disalbe scapy logging
+logging.getLogger("scapy.runtime").setLevel(logging.CRITICAL)
 
 @dataclass
 class FirewallOptions:
