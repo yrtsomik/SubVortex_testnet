@@ -132,6 +132,21 @@ class Miner:
         )
         bt.logging.info(f"Running miner on uid: {self.my_subnet_uid}")
 
+        # Firewall
+        if self.config.firewall.on:
+            bt.logging.debug(
+                f"Starting firewall on interface {self.config.firewall.interface}"
+            )
+            self.firewall = Firewall(
+                self.config.firewall.interface,
+                (
+                    load_json_file(self.config.firewall.config)
+                    if self.config.firewall.config
+                    else None
+                ),
+            )
+            self.firewall.start()
+
         # The axon handles request processing, allowing validators to send this process requests.
         self.axon = bt.axon(
             wallet=self.wallet,
@@ -171,21 +186,6 @@ class Miner:
 
         # Init the event loop.
         self.loop = asyncio.get_event_loop()
-
-        # Firewall
-        if self.config.firewall.on:
-            bt.logging.debug(
-                f"Starting firewall on interface {self.config.firewall.interface}"
-            )
-            self.firewall = Firewall(
-                self.config.firewall.interface,
-                (
-                    load_json_file(self.config.firewall.config)
-                    if self.config.firewall.config
-                    else None
-                ),
-            )
-            self.firewall.start()
 
         # Instantiate runners
         self.should_exit: bool = False
