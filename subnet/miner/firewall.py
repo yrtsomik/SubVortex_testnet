@@ -172,10 +172,6 @@ class Firewall(threading.Thread):
         return rule
 
     def packet_callback(self, packet):
-        if Raw in packet:
-            ip = packet[IP].src if IP in packet else None
-            print(f"REQUEST RECEIVED BY THE FIREWALL {ip}", packet[Raw].load.decode(errors='ignore'))
-
         if TCP not in packet:
             return
 
