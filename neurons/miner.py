@@ -179,7 +179,7 @@ class Miner:
             )
             self.firewall = Firewall(
                 self.config.firewall.interface,
-                load_json_file(config) if self.config.firewall.config else None,
+                load_json_file(self.config.firewall.config) if self.config.firewall.config else None,
             )
             self.firewall.start()
 
