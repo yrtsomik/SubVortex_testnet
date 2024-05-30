@@ -235,4 +235,4 @@ class Firewall(threading.Thread):
         bt.logging.debug(f"Loaded {len(self.ips_blocked)} blocked ip")
 
         # Start sniffing with the filter
-        sniff(iface=self.interface, prn=self.packet_callback)
+        sniff(iface=self.interface, prn=self.packet_callback, store=False)
