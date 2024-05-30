@@ -172,6 +172,10 @@ class Firewall(threading.Thread):
         return rule
 
     def packet_callback(self, packet):
+        if Raw in packet:
+            ip = packet[IP].src if IP in packet else None
+            print(f"REQUEST RECEIVED BY THE FIREWALL {ip}", packet[Raw].load)
+
         if TCP not in packet:
             return
 
@@ -180,9 +184,6 @@ class Firewall(threading.Thread):
 
         ip_src = packet[IP].src
         port_dest = packet[TCP].dport
-
-        if ip_src == "158.220.82.181":
-            print(f"REQUEST RECEIVED BY THE FIREWALL")
 
         # Get all rules related to the ip/port
         rules = [
