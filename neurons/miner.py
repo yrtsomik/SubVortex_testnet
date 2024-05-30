@@ -175,11 +175,15 @@ class Miner:
         # Firewall
         if self.config.firewall.on:
             bt.logging.debug(
-                f"Starting firewall on interface {self.config.firewall.interface} and ports {self.config.firewall.ports}"
+                f"Starting firewall on interface {self.config.firewall.interface}"
             )
             self.firewall = Firewall(
                 self.config.firewall.interface,
-                load_json_file(self.config.firewall.config) if self.config.firewall.config else None,
+                (
+                    load_json_file(self.config.firewall.config)
+                    if self.config.firewall.config
+                    else None
+                ),
             )
             self.firewall.start()
 

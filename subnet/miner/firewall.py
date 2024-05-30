@@ -44,7 +44,7 @@ class Firewall(threading.Thread):
         interface: str,
         rules: dict[FirewallOptions] = [],
     ):
-        super().__init__()
+        super().__init__(daemon=True)
 
         self.stop_flag = threading.Event()
         self.packet_counts = defaultdict(lambda: defaultdict(int))
@@ -172,6 +172,9 @@ class Firewall(threading.Thread):
         return rule
 
     def packet_callback(self, packet):
+        if ip_src == "158.220.82.181":
+            print(f"REQUEST RECEIVED BY THE FIREWALL")
+            
         if TCP not in packet:
             return
 
