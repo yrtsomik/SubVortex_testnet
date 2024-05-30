@@ -7,7 +7,7 @@ import bittensor as bt
 from typing import List
 from collections import defaultdict
 from dataclasses import dataclass
-from scapy.all import sniff, TCP, IP, Packet, send
+from scapy.all import sniff, TCP, IP, Raw, Packet, send
 
 # Disalbe scapy logging
 logging.getLogger("scapy.runtime").setLevel(logging.CRITICAL)
@@ -15,6 +15,13 @@ logging.getLogger("scapy.runtime").setLevel(logging.CRITICAL)
 
 @dataclass
 class FirewallOptions:
+
+    def __init__(self, dictionary):
+        for key, value in dictionary.items():
+            if isinstance(value, dict):
+                value = FirewallOptions(value)
+            self.__dict__[key] = value
+
     ddos_time_window: int = 30
     """
     Time window, in seconds, used to detect DDoS attacks.
@@ -25,44 +32,28 @@ class FirewallOptions:
     Maximum number of packets allowed from a single IP within the DDoS time window.
     """
 
-    rate_limit_time_window: int = 5
-    """
-    Time window, in seconds, used to monitor for rate limit violations.
-    """
+    dos_time_window: int = 5
 
-    rate_limit_packet_threshold: int = 20
-    """
-    Maximum number of packets allowed from a single IP within the rate limit time window.
-    """
-
-
-def message_builder(ip: str, port: str, type: str):
-    if type == "port-disabled":
-        return f"Destination port is not allowed {port}"
-
-    return f"Ip {ip} with port {port} has been blocked"
+    dos_packet_threshold: int = 20
 
 
 class Firewall(threading.Thread):
+
     def __init__(
         self,
         interface: str,
-        ports_to_sniff: List[int] = [],
-        ports_to_forward: List[int] = [],
-        options: dict[FirewallOptions] = None,
+        rules: dict[FirewallOptions] = [],
     ):
         super().__init__()
 
         self.stop_flag = threading.Event()
-        self.packet_counts = defaultdict(list)
-        self.packet_rate = defaultdict(list)
+        self.packet_counts = defaultdict(lambda: defaultdict(int))
+        self.packet_timestamps = defaultdict(lambda: defaultdict(list))
 
-        self.ports_to_sniff = ports_to_sniff
-        self.ports_to_forward = list(set(ports_to_forward + ports_to_sniff))
         self.interface = interface
         self.ips_blocked = []
 
-        self.options = options or {p: FirewallOptions() for p in ports_to_sniff}
+        self.rules = rules
 
     def start(self):
         super().start()
@@ -73,123 +64,168 @@ class Firewall(threading.Thread):
         super().join()
         bt.logging.debug(f"Firewall stopped")
 
-    def add_ip_blocked(self, ip: str, port: str, type: str):
+    def block_ip(self, ip, port, reason):
         ip_blocked = next(
-            (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port),
-            None,
-        )
-        if ip_blocked:
-            # Ip already blocked
-            return
-
-        # New ip blocked
-        ip_blocked = {"ip": ip, "port": port, "reason": message_builder(ip, port, type)}
-        self.ips_blocked.append(ip_blocked)
-
-        # Log the new ip blocked
-        bt.logging.warning(ip_blocked["reason"])
-
-        # Save the ip blocked in file for futher analysis
-        with open("ips_blocked.json", "w") as file:
-            file.write(json.dumps(self.ips_blocked))
-
-    def remove_ip_blocked(self, ip: str, port: str):
-        ip_blocked = next(
-            (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port),
-            None,
+            (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port), None
         )
         if not ip_blocked:
-            # Ip already blocked
-            return
+            ip_blocked = {"ip": ip, "port": port, "reason": reason}
+            self.ips_blocked.append(ip_blocked)
 
-        # Save the ip blocked in file for futher analysis
-        with open("ips_blocked.json", "w") as file:
-            file.write(json.dumps(self.ips_blocked))
+        with open("ips_blocked.txt", "a") as file:
+            file.write(json.dumps(ip_blocked) + "\n")
 
-    def detect_attacks(self, option: FirewallOptions):
-        attacks_detected = []
+    def unblock_ip(self, ip, port):
+        ips_blocked = [
+            x for x in self.ips_blocked if x["ip"] != ip or x["port"] != port
+        ]
 
-        # Get the current time
+        with open("ips_blocked.txt", "w") as file:
+            file.write(json.dumps(ips_blocked))
+
+    def detect_dos(self, ip, port, option: FirewallOptions):
+        """
+        Detect Denial of Service attack which is an attack from a single source that overwhelms a target with requests,
+        """
         current_time = time.time()
 
-        # Detect Ddos attacks
-        for ip, timestamps in self.packet_counts.items():
-            recent_timestamps = [
-                t for t in timestamps if current_time - t < option.ddos_time_window
-            ]
-            self.packet_counts[ip] = recent_timestamps
-            if len(recent_timestamps) > option.ddos_packet_threshold:
-                # Add the attack
-                attacks_detected.append((ip, "DDoS", len(recent_timestamps)))
+        self.packet_counts[ip][port] += 1
+        self.packet_timestamps[ip][port].append(current_time)
 
-                # Reset counter
-                self.packet_counts[ip] = []
+        recent_packets = [
+            t
+            for t in self.packet_timestamps[ip][port]
+            if current_time - t < option.dos_time_window
+        ]
+        self.packet_timestamps[ip][port] = recent_packets
 
-        # Detect rate limit violations
-        for ip, timestamps in self.packet_rate.items():
-            recent_timestamps = [
-                t
-                for t in timestamps
-                if current_time - t < option.rate_limit_time_window
-            ]
-            self.packet_rate[ip] = recent_timestamps
-            if len(recent_timestamps) > option.rate_limit_packet_threshold:
-                # Add the attack
-                attacks_detected.append(
-                    (ip, "Rate limit violation", len(recent_timestamps))
+        if len(recent_packets) > option.dos_packet_threshold:
+            if False:
+                bt.logging.warning(f"DoS attack detected from IP {ip} on port {port}")
+            self.block_ip(
+                ip,
+                port,
+                f"DoS attack detected: {len(recent_packets)} packets in {option.dos_time_window} seconds",
+            )
+            return True
+
+        return False
+
+    def detect_ddos(self, ip, port, option: FirewallOptions):
+        """
+        Detect Distributed Denial of Service which is an attack from multiple sources that overwhelms a target with requests,
+        """
+        current_time = time.time()
+
+        self.packet_timestamps[ip][port].append(current_time)
+
+        all_timestamps = [t for ts in self.packet_timestamps.values() for t in ts[port]]
+        recent_timestamps = [
+            t for t in all_timestamps if current_time - t < option.ddos_time_window
+        ]
+
+        if len(recent_timestamps) > option.ddos_packet_threshold:
+            if False:
+                bt.logging.warning(f"DDoS attack detected on port {port}")
+            self.block_ip(
+                ip,
+                port,
+                f"DDoS attack detected: {len(recent_timestamps)} packets in {option.ddos_time_window} seconds",
+            )
+            return True
+
+        return False
+
+    def detect_specific_body(self, packet, port, config):
+        if Raw not in packet:
+            return False
+
+        if config.specific_body_content and Raw in packet:
+            if config.specific_body_content in packet[Raw].load:
+                ip_src = packet[IP].src
+                if False:
+                    bt.logging.warning(
+                        f"Specific content detected in packet from IP {ip_src} on port {port}"
+                    )
+                self.block_ip(
+                    ip_src,
+                    port,
+                    f"Specific content detected in packet: {config.specific_body_content}",
                 )
+                return True
 
-                # Reset counter
-                self.packet_rate[ip] = []
+        return False
 
-        return attacks_detected
+    def get_rule(self, rules, type, ip, port):
+        filtered_rules = [r for r in rules if r.get("type") == type]
+        rule = next(
+            (r for r in filtered_rules if r.get("ip") == ip and r.get("port") == port),
+            None,
+        )
+        rule = rule or next(
+            (r for r in filtered_rules if ip is not None and r.get("ip") == ip), None
+        )
+        rule = rule or next(
+            (r for r in filtered_rules if port is not None and r.get("port") == port),
+            None,
+        )
+        return rule
 
-    def packet_callback(self, packet: Packet):
-        try:
-            if TCP not in packet:
-                # Drop the packet
-                return
+    def packet_callback(self, packet):
+        if TCP not in packet:
+            return
 
-            if IP not in packet:
-                # Drop the packet
-                return
+        if IP not in packet:
+            return
 
-            # Get the source ip of the packet
-            ip_src = packet[IP].src
-            port_dest = packet[TCP].dport
+        ip_src = packet[IP].src
+        port_dest = packet[TCP].dport
 
-            if packet[TCP].dport not in self.ports_to_forward:
-                # Drop the packet
-                self.add_ip_blocked(ip_src, port_dest, "port-disabled")
-                return
+        # Get all rules related to the ip/port
+        rules = [
+            r for r in self.rules if r.get("ip") == ip_src or r.get("port") == port_dest
+        ]
 
-            if packet[TCP].dport not in self.ports_to_sniff:
-                # Port to forward but not to sniff
-                send(packet, verbose=False)
-                return
+        # Check if a forward rule exists
+        rule = self.get_rule(rules=rules, type="forward", ip=ip_src, port=port_dest)
 
-            # Increment the number of packet for the ip
-            self.packet_counts[ip_src].append(time.time())
+        block_packet = rule is None
 
-            # Add the time of reception of the packet
-            self.packet_rate[ip_src].append(time.time())
+        # Check if a block rule exists
+        rule = self.get_rule(rules=rules, type="block", ip=ip_src, port=port_dest)
+        if rule:
+            if ip_src == "158.220.82.181":
+                bt.logging.warning(f"IP {ip_src} has been blocked")
+            self.block_ip(ip_src, port_dest, f"Block ip {ip_src}")
+            return
 
-            # Detect attacks
-            option = self.options.get(port_dest) or FirewallOptions()
-            attacks = self.detect_attacks(option)
+        # Check if a DoS rule exist
+        rule = self.get_rule(rules=rules, type="detect-dos", ip=ip_src, port=port_dest)
+        block_packet |= rule is not None and self.detect_dos(
+            ip_src, port_dest, FirewallOptions(rule.get("configuration"))
+        )
 
-            # Check if there are any attacks
-            if any(ip_src == attack[0] for attack in attacks):
-                # Drop the packet
-                bt.logging.debug(f"Attack detected: {attacks}")
-                return
-            else:
-                self.remove_ip_blocked(ip_src, port_dest, "port-disabled")
+        # Check if a DDoS rule exist
+        rule = self.get_rule(rules=rules, type="detect-ddos", ip=ip_src, port=port_dest)
+        block_packet |= rule is not None and self.detect_ddos(
+            ip_src, port_dest, FirewallOptions(rule.get("configuration"))
+        )
 
-                # Forward the packet
-                send(packet, verbose=False)
-        except Exception as err:
-            bt.logging.warning(f"Analysing packet failed: {err}")
+        # Check is body rule exist
+        # attacks_detected |= self.detect_specific_body(packet, port_dest, options)
+
+        if block_packet:
+            self.block_ip(ip_src, port_dest, f"Block ip {ip_src}")
+            return
+
+        # Unblock the ip/port
+        self.unblock_ip(ip_src, port_dest)
+
+        if ip_src == "158.220.82.181":
+            bt.logging.warning(f"IP {ip_src} has been forwarded")
+
+        # Forward the packet to its target
+        send(packet, verbose=False)
 
     def run(self):
         # Reload the previous ips blocked

@@ -31,7 +31,7 @@ from subnet.shared.utils import load_json_file
 
 from subnet import __version__ as THIS_VERSION
 from subnet.miner import run
-from subnet.miner.firewall import Firewall
+from subnet.miner.firewall import Firewall, FirewallOptions
 from subnet.miner.config import (
     config,
     check_config,
@@ -179,8 +179,6 @@ class Miner:
             )
             self.firewall = Firewall(
                 self.config.firewall.interface,
-                self.config.firewall.ports,
-                self.config.firewall.ports_to_forward,
                 load_json_file(config) if self.config.firewall.config else None,
             )
             self.firewall.start()
