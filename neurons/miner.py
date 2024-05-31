@@ -303,16 +303,14 @@ def run_miner():
         bt.logging.error(f"Unhandled exception: {e}")
         sys.exit(1)
     finally:
-        if not miner:
-            return
-
-        if miner.firewall:
+        if miner and miner.firewall:
             bt.logging.info("Stopping firewall")
             miner.firewall.stop()
             miner.firewall.join()
 
-        bt.logging.info("Stopping axon")
-        miner.axon.stop()
+        if miner:
+            bt.logging.info("Stopping axon")
+            miner.axon.stop()
 
 
 if __name__ == "__main__":

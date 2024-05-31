@@ -9,6 +9,12 @@ from collections import defaultdict
 from dataclasses import dataclass
 from scapy.all import sniff, TCP, IP, Raw, Packet, send
 
+from subnet.miner.config import (
+    config,
+    check_config,
+    add_args,
+)
+
 # Disalbe scapy logging
 logging.getLogger("scapy.runtime").setLevel(logging.CRITICAL)
 
@@ -38,7 +44,6 @@ class FirewallOptions:
 
 
 class Firewall(threading.Thread):
-
     def __init__(
         self,
         interface: str,
@@ -235,4 +240,4 @@ class Firewall(threading.Thread):
         bt.logging.debug(f"Loaded {len(self.ips_blocked)} blocked ip")
 
         # Start sniffing with the filter
-        sniff(iface=self.interface, prn=self.packet_callback, store=False)
+        sniff(iface=self.interface, prn=self.packet_callback, store=False, stop_filter=self.stop_flag.set())
