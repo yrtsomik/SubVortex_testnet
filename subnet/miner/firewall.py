@@ -2,18 +2,13 @@ import os
 import json
 import time
 import logging
+import subprocess
 import threading
 import bittensor as bt
 from typing import List
 from collections import defaultdict
 from dataclasses import dataclass
-from scapy.all import sniff, TCP, IP, Raw, Packet, send
-
-from subnet.miner.config import (
-    config,
-    check_config,
-    add_args,
-)
+from scapy.all import sniff, TCP, IP, Raw
 
 # Disalbe scapy logging
 logging.getLogger("scapy.runtime").setLevel(logging.CRITICAL)
@@ -73,18 +68,36 @@ class Firewall(threading.Thread):
         ip_blocked = next(
             (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port), None
         )
-        if not ip_blocked:
-            ip_blocked = {"ip": ip, "port": port, "reason": reason}
-            self.ips_blocked.append(ip_blocked)
+        if ip_blocked:
+            return
 
+        # Update the ip tables
+        subprocess.run(["sudo", "iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"])
+
+        # Update the block ips
+        ip_blocked = {"ip": ip, "port": port, "reason": reason}
+        self.ips_blocked.append(ip_blocked)
+
+        # Update the local file
         with open("ips_blocked.txt", "a") as file:
             file.write(json.dumps(ip_blocked) + "\n")
 
     def unblock_ip(self, ip, port):
+        ip_blocked = next(
+            (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port), None
+        )
+        if not ip_blocked:
+            return
+
+        # Update the ip tables
+        subprocess.run(["sudo", "iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"])
+
+        # Update the block ips
         ips_blocked = [
             x for x in self.ips_blocked if x["ip"] != ip or x["port"] != port
         ]
 
+        # Update the local file
         with open("ips_blocked.txt", "w") as file:
             file.write(json.dumps(ips_blocked))
 
@@ -229,9 +242,6 @@ class Firewall(threading.Thread):
         if ip_src == "158.220.82.181":
             bt.logging.warning(f"IP {ip_src} has been forwarded")
 
-        # Forward the packet to its target
-        send(packet, verbose=False)
-
     def run(self):
         # Reload the previous ips blocked
         if os.path.exists("ips_blocked.json"):
@@ -240,4 +250,9 @@ class Firewall(threading.Thread):
         bt.logging.debug(f"Loaded {len(self.ips_blocked)} blocked ip")
 
         # Start sniffing with the filter
-        sniff(iface=self.interface, prn=self.packet_callback, store=False, stop_filter=self.stop_flag.set())
+        sniff(
+            iface=self.interface,
+            prn=self.packet_callback,
+            store=False,
+            stop_filter=self.stop_flag.set(),
+        )
