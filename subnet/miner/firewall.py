@@ -8,7 +8,7 @@ import bittensor as bt
 from typing import List
 from collections import defaultdict
 from dataclasses import dataclass
-from scapy.all import sniff, TCP, IP, Raw
+from scapy.all import sniff, TCP, UDP, IP, Raw
 
 # Disalbe scapy logging
 logging.getLogger("scapy.runtime").setLevel(logging.CRITICAL)
@@ -93,13 +93,13 @@ class Firewall(threading.Thread):
         subprocess.run(["sudo", "iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"])
 
         # Update the block ips
-        ips_blocked = [
+        self.ips_blocked = [
             x for x in self.ips_blocked if x["ip"] != ip or x["port"] != port
         ]
 
         # Update the local file
         with open("ips_blocked.txt", "w") as file:
-            file.write(json.dumps(ips_blocked))
+            file.write(json.dumps(self.ips_blocked))
 
     def detect_dos(self, ip, port, option: FirewallOptions):
         """
@@ -115,11 +115,10 @@ class Firewall(threading.Thread):
             for t in self.packet_timestamps[ip][port]
             if current_time - t < option.dos_time_window
         ]
+        # print(current_time, len(recent_packets))
         self.packet_timestamps[ip][port] = recent_packets
 
         if len(recent_packets) > option.dos_packet_threshold:
-            if False:
-                bt.logging.warning(f"DoS attack detected from IP {ip} on port {port}")
             self.block_ip(
                 ip,
                 port,
@@ -143,8 +142,6 @@ class Firewall(threading.Thread):
         ]
 
         if len(recent_timestamps) > option.ddos_packet_threshold:
-            if False:
-                bt.logging.warning(f"DDoS attack detected on port {port}")
             self.block_ip(
                 ip,
                 port,
@@ -190,14 +187,15 @@ class Firewall(threading.Thread):
         return rule
 
     def packet_callback(self, packet):
-        if TCP not in packet:
-            return
+        ip_src = packet[IP].src if IP in packet else None
+        port_dest = (
+            packet[TCP].dport
+            if TCP in packet
+            else packet[UDP].dport if UDP in packet else None
+        )
 
-        if IP not in packet:
+        if ip_src is None:
             return
-
-        ip_src = packet[IP].src
-        port_dest = packet[TCP].dport
 
         # Get all rules related to the ip/port
         rules = [
@@ -212,8 +210,6 @@ class Firewall(threading.Thread):
         # Check if a block rule exists
         rule = self.get_rule(rules=rules, type="block", ip=ip_src, port=port_dest)
         if rule:
-            if ip_src == "158.220.82.181":
-                bt.logging.warning(f"IP {ip_src} has been blocked")
             self.block_ip(ip_src, port_dest, f"Block ip {ip_src}")
             return
 
@@ -229,18 +225,12 @@ class Firewall(threading.Thread):
             ip_src, port_dest, FirewallOptions(rule.get("configuration"))
         )
 
-        # Check is body rule exist
-        # attacks_detected |= self.detect_specific_body(packet, port_dest, options)
-
         if block_packet:
             self.block_ip(ip_src, port_dest, f"Block ip {ip_src}")
             return
 
         # Unblock the ip/port
         self.unblock_ip(ip_src, port_dest)
-
-        if ip_src == "158.220.82.181":
-            bt.logging.warning(f"IP {ip_src} has been forwarded")
 
     def run(self):
         # Reload the previous ips blocked

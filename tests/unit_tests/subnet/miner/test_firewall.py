@@ -25,7 +25,7 @@ class TestFirewall(unittest.TestCase):
                 f"Mock was called with arguments {args} and keyword arguments {kwargs}"
             )
 
-    def assert_blocked(self, firewall, ip, port):
+    def assert_blocked(self, firewall, ip, port, process_run):
         block = next(
             (
                 x
@@ -35,8 +35,11 @@ class TestFirewall(unittest.TestCase):
             None,
         )
         assert block is not None
+        process_run.assert_called_once_with(
+            ["sudo", "iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"]
+        )
 
-    def assert_unblocked(self, firewall, ip, port):
+    def assert_unblocked(self, firewall, ip, port, process_run):
         block = next(
             (
                 x
@@ -46,15 +49,18 @@ class TestFirewall(unittest.TestCase):
             None,
         )
         assert block is None
+        process_run.assert_called_once_with(
+            ["sudo", "iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"]
+        )
 
     def set_time(self, mock_time, second=0):
         specific_time = time.struct_time((2024, 5, 28, 12, 0, second, 0, 0, -1))
         mock_time.return_value = time.mktime(specific_time)
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("scapy.all.send")
     def test_when_a_packet_with_no_ip_is_received_should_not_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         firewall = Firewall("eth0")
@@ -65,13 +71,13 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_not_called()
         assert 0 == len(firewall.ips_blocked)
+        mock_run.assert_not_called()
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("scapy.all.send")
     def test_when_a_packet_not_tcp_is_received_should_not_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         firewall = Firewall("eth0")
@@ -82,13 +88,12 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_not_called()
-        assert 0 == len(firewall.ips_blocked)
+        self.assert_blocked(firewall, "192.168.0.1", 53, mock_run)
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("scapy.all.send")
     def test_given_no_ports_configured_when_a_packet_is_received_should_not_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         firewall = Firewall("eth0")
@@ -99,13 +104,12 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_not_called()
-        self.assert_blocked(firewall, "192.168.0.1", 8091)
+        self.assert_blocked(firewall, "192.168.0.1", 8091, mock_run)
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("subnet.miner.firewall.send")
     def test_given_a_port_forward_when_a_packet_on_that_port_is_received_should_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         rules = [{"port": 8091, "type": "forward"}]
@@ -117,13 +121,13 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_called_once_with(packet, verbose=False)
         assert 0 == len(firewall.ips_blocked)
+        mock_run.assert_not_called()
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("subnet.miner.firewall.send")
     def test_given_a_port_forward_when_a_packet_on_different_port_is_received_should_not_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         rules = [{"port": 8091, "type": "forward"}]
@@ -135,13 +139,12 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_not_called()
-        self.assert_blocked(firewall, "192.168.0.1", 8092)
+        self.assert_blocked(firewall, "192.168.0.1", 8092, mock_run)
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("subnet.miner.firewall.send")
     def test_given_a_port_sniff_when_a_packet_on_that_port_is_received_and_no_attacks_is_detected_should_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         rules = [
@@ -163,13 +166,13 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_called_once_with(packet, verbose=False)
-        self.assert_unblocked(firewall, "192.168.0.1", 8091)
+        assert 0 == len(firewall.ips_blocked)
+        mock_run.assert_not_called()
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("subnet.miner.firewall.send")
     def test_given_a_port_sniff_when_a_packet_on_that_port_is_received_and_dos_attack_is_detected_should_not_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         rules = [
@@ -195,13 +198,12 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_called_once_with(packet, verbose=False)
-        self.assert_blocked(firewall, "192.168.0.1", 8091)
+        self.assert_blocked(firewall, "192.168.0.1", 8091, mock_run)
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("subnet.miner.firewall.send")
-    def test_given_a_port_sniff_when_a_packet_on_that_port_is_received_and_dos_attack_is_not_detected_should_not_forward_the_packet(
-        self, mock_send, mock_time
+    def test_given_a_port_sniff_when_a_packet_on_that_port_is_received_and_dos_attack_is_not_detected_should_forward_the_packet(
+        self, mock_time, mock_run
     ):
         # Arrange
         rules = [
@@ -227,14 +229,13 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        self.assertEqual(mock_send.call_count, 2)
-        mock_send.assert_called_with(packet, verbose=False)
-        self.assert_unblocked(firewall, "192.168.0.1", 8091)
+        assert 0 == len(firewall.ips_blocked)
+        mock_run.assert_not_called()
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("subnet.miner.firewall.send")
     def test_given_a_port_sniff_when_a_packet_on_that_port_is_received_and_ddos_attack_is_detected_should_not_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         rules = [
@@ -260,13 +261,12 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_called_once_with(packet, verbose=False)
-        self.assert_blocked(firewall, "192.168.0.1", 8091)
+        self.assert_blocked(firewall, "192.168.0.1", 8091, mock_run)
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("subnet.miner.firewall.send")
     def test_given_a_port_sniff_when_a_packet_on_that_port_is_received_and_ddos_attack_is_not_detected_should_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         rules = [
@@ -292,14 +292,13 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        self.assertEqual(mock_send.call_count, 2)
-        mock_send.assert_called_with(packet, verbose=False)
-        self.assert_unblocked(firewall, "192.168.0.1", 8091)
+        assert 0 == len(firewall.ips_blocked)
+        mock_run.assert_not_called()
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("subnet.miner.firewall.send")
     def test_given_a_blocked_ip_when_a_packet_from_that_ip_is_received_should_not_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         rules = [
@@ -317,13 +316,12 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_not_called()
-        self.assert_blocked(firewall, "192.168.0.1", 8091)
+        self.assert_blocked(firewall, "192.168.0.1", 8091, mock_run)
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("subnet.miner.firewall.send")
     def test_given_a_blocked_ip_when_a_packet_from_a_different_ip_is_received_should_not_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         rules = [
@@ -341,13 +339,12 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_not_called()
-        self.assert_blocked(firewall, "192.168.0.2", 8091)
+        self.assert_blocked(firewall, "192.168.0.2", 8091, mock_run)
 
+    @patch("subprocess.run")
     @patch("time.time")
-    @patch("subnet.miner.firewall.send")
     def test_given_a_blocked_ip_and_a_port_forward_when_a_packet_from_a_different_ip_is_received_should_forward_the_packet(
-        self, mock_send, mock_time
+        self, mock_time, mock_run
     ):
         # Arrange
         rules = [
@@ -369,5 +366,84 @@ class TestFirewall(unittest.TestCase):
         firewall.packet_callback(packet)
 
         # Assets
-        mock_send.assert_called_with(packet, verbose=False)
         assert 0 == len(firewall.ips_blocked)
+        mock_run.assert_not_called()
+
+    @patch("subprocess.run")
+    @patch("time.time")
+    def test_a_pcket_is_blocked_and_then_blocked_again(self, mock_time, mock_run):
+        # Arrange
+        rules = [
+            {"port": 8091, "type": "forward"},
+            {
+                "port": 8091,
+                "type": "detect-dos",
+                "configuration": {
+                    "dos_time_window": 30,
+                    "dos_packet_threshold": 1,
+                },
+            },
+        ]
+        firewall = Firewall("eth0", rules=rules)
+
+        packet: Packet = TCP(dport=8091) / IP(src="192.168.0.1")
+
+        # Action
+        self.set_time(mock_time)
+        firewall.packet_callback(packet)
+
+        self.set_time(mock_time, 29)
+        firewall.packet_callback(packet)
+
+        # Assets
+        self.assert_blocked(firewall, "192.168.0.1", 8091, mock_run)
+
+        # Arrange
+        mock_run.reset_mock()
+
+        # Action
+        self.set_time(mock_time, 58)
+        firewall.packet_callback(packet)
+
+        # Assets
+        assert 1 == len(firewall.ips_blocked)
+        mock_run.assert_not_called()
+
+    @patch("subprocess.run")
+    @patch("time.time")
+    def test_a_pcket_is_blocked_and_then_unblocked(self, mock_time, mock_run):
+        # Arrange
+        rules = [
+            {"port": 8091, "type": "forward"},
+            {
+                "port": 8091,
+                "type": "detect-dos",
+                "configuration": {
+                    "dos_time_window": 30,
+                    "dos_packet_threshold": 1,
+                },
+            },
+        ]
+        firewall = Firewall("eth0", rules=rules)
+
+        packet: Packet = TCP(dport=8091) / IP(src="192.168.0.1")
+
+        # Action
+        self.set_time(mock_time)
+        firewall.packet_callback(packet)
+
+        self.set_time(mock_time, 29)
+        firewall.packet_callback(packet)
+
+        # Assets
+        self.assert_blocked(firewall, "192.168.0.1", 8091, mock_run)
+
+        # Arrange
+        mock_run.reset_mock()
+
+        # Action
+        self.set_time(mock_time, 60)
+        firewall.packet_callback(packet)
+
+        # Assets
+        self.assert_unblocked(firewall, "192.168.0.1", 8091, mock_run)

@@ -1,5 +1,25 @@
 [
     {
+        "ip": "167.86.79.86",
+        "type": "forward"
+    },
+    {
+        "port": 22,
+        "type": "forward"
+    },
+    {
+        "port": 9944,
+        "type": "forward"
+    },
+    {
+        "port": 9933,
+        "type": "forward"
+    },
+    {
+        "port": 30333,
+        "type": "forward"
+    },
+    {
         "port": 8091,
         "type": "forward"
     },
@@ -21,7 +41,6 @@
     },
     {
         "ip": "158.220.82.181",
-        "port": 8091,
         "type": "block"
     }
 ]
