@@ -19,9 +19,13 @@ def is_sublist(sublist, main_list):
     return False
 
 
-def mock_check_rule(mock_run, returncode, cmd):
+def mock_check_rule(
+    mock_run, returncode, cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL
+):
     if is_sublist(["sudo", "iptables", "-C", "INPUT"], cmd):
-        return subprocess.CompletedProcess(args=cmd, returncode=returncode)
+        return subprocess.CompletedProcess(
+            args=cmd, returncode=returncode, stdout=stdout, stderr=stderr
+        )
     else:
         return mock_run
 

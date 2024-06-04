@@ -1,12 +1,12 @@
 import subprocess
 
 
-def rule_exists(ip=None, port=None, allow=True):
+def rule_exists(ip=None, port=None, protocol="tcp", allow=True):
     args = ["sudo", "iptables", "-C", "INPUT"]
     if ip:
         args.extend(["-s", ip])
     if port:
-        args.extend(["-p", "tcp", "--dport", str(port)])
+        args.extend(["-p", protocol, "--dport", str(port)])
     if allow:
         args.extend(["-j", "ACCEPT"])
     else:
@@ -27,8 +27,8 @@ def allow_traffic_from_ip(ip):
     )
 
 
-def allow_traffic_on_port(port):
-    if rule_exists(port=port):
+def allow_traffic_on_port(port, protocol="tcp"):
+    if rule_exists(port=port, protocol=protocol):
         return
 
     subprocess.run(
@@ -38,7 +38,7 @@ def allow_traffic_on_port(port):
             "-A",
             "INPUT",
             "-p",
-            "tcp",
+            protocol,
             "--dport",
             str(port),
             "-j",
@@ -49,8 +49,8 @@ def allow_traffic_on_port(port):
     )
 
 
-def allow_traffic_from_ip_and_port(ip, port):
-    if rule_exists(ip=ip, port=port):
+def allow_traffic_from_ip_and_port(ip, port, protocol="tcp"):
+    if rule_exists(ip=ip, port=port, protocol=protocol):
         return
 
     subprocess.run(
@@ -62,7 +62,7 @@ def allow_traffic_from_ip_and_port(ip, port):
             "-s",
             ip,
             "-p",
-            "tcp",
+            protocol,
             "--dport",
             str(port),
             "-j",
@@ -84,8 +84,8 @@ def deny_traffic_from_ip(ip):
     )
 
 
-def deny_traffic_on_port(port):
-    if rule_exists(port=port, allow=False):
+def deny_traffic_on_port(port, protocol):
+    if rule_exists(port=port, protocol=protocol, allow=False):
         return
 
     subprocess.run(
@@ -95,7 +95,7 @@ def deny_traffic_on_port(port):
             "-A",
             "INPUT",
             "-p",
-            "tcp",
+            protocol,
             "--dport",
             str(port),
             "-j",
@@ -106,8 +106,8 @@ def deny_traffic_on_port(port):
     )
 
 
-def deny_traffic_from_ip_and_port(ip, port):
-    if rule_exists(ip=ip, port=port, allow=False):
+def deny_traffic_from_ip_and_port(ip, port, protocol="tcp"):
+    if rule_exists(ip=ip, port=port, protocol=protocol, allow=False):
         return
 
     subprocess.run(
@@ -119,7 +119,7 @@ def deny_traffic_from_ip_and_port(ip, port):
             "-s",
             ip,
             "-p",
-            "tcp",
+            protocol,
             "--dport",
             str(port),
             "-j",
@@ -130,8 +130,8 @@ def deny_traffic_from_ip_and_port(ip, port):
     )
 
 
-def remove_deny_traffic_from_ip_and_port(ip, port):
-    if not rule_exists(ip=ip, port=port, allow=False):
+def remove_deny_traffic_from_ip_and_port(ip, port, protocol="tcp"):
+    if not rule_exists(ip=ip, port=port, protocol=protocol, allow=False):
         return
 
     subprocess.run(
@@ -143,7 +143,7 @@ def remove_deny_traffic_from_ip_and_port(ip, port):
             "-s",
             ip,
             "-p",
-            "tcp",
+            protocol,
             "--dport",
             str(port),
             "-j",
