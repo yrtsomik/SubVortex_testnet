@@ -121,14 +121,14 @@ class Firewall(threading.Thread):
         current_time = time.time()
 
         self.packet_counts[ip][port] += 1
-        self.packet_timestamps[ip][port][protocol].append(current_time)
+        self.packet_timestamps[ip][port].append(current_time)
 
         recent_packets = [
             t
-            for t in self.packet_timestamps[ip][port][protocol]
+            for t in self.packet_timestamps[ip][port]
             if current_time - t < option.dos_time_window
         ]
-        self.packet_timestamps[ip][port][protocol] = recent_packets
+        self.packet_timestamps[ip][port] = recent_packets
 
         if len(recent_packets) > option.dos_packet_threshold:
             self.block_ip(
@@ -147,9 +147,9 @@ class Firewall(threading.Thread):
         """
         current_time = time.time()
 
-        self.packet_timestamps[ip][port][protocol].append(current_time)
+        self.packet_timestamps[ip][port].append(current_time)
 
-        all_timestamps = [x for ts in self.packet_timestamps.values() for t in ts[port] for x in t[protocol]]
+        all_timestamps = [t for ts in self.packet_timestamps.values() for t in ts[port]]
         recent_timestamps = [
             t for t in all_timestamps if current_time - t < option.ddos_time_window
         ]
