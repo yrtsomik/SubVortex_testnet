@@ -195,7 +195,7 @@ class Firewall(threading.Thread):
 
     def packet_callback(self, packet: Packet):
         ip_src = packet[IP].src if IP in packet else None
-        protocol = "protocol" if TCP in packet else "udp" if UDP in packet else None
+        protocol = "tcp" if TCP in packet else "udp" if UDP in packet else None
         port_dest = (
             packet[TCP].dport
             if TCP in packet
