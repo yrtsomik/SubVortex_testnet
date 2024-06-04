@@ -124,12 +124,10 @@ class Firewall(threading.Thread):
 
         bt.logging.warning(f"Unblocking {protocol.upper()} {ip}/{port}")
 
-    def detect_dos(self, ip, port, protocol, option: FirewallOptions):
+    def detect_dos(self, ip, port, protocol, option: FirewallOptions, current_time):
         """
         Detect Denial of Service attack which is an attack from a single source that overwhelms a target with requests,
         """
-        current_time = time.time()
-
         recent_packets = [
             t
             for t in self.packet_timestamps[ip][port]
@@ -148,27 +146,25 @@ class Firewall(threading.Thread):
 
         return False
 
-    def detect_ddos(self, ip, port, protocol, option: FirewallOptions):
-        """
-        Detect Distributed Denial of Service which is an attack from multiple sources that overwhelms a target with requests,
-        """
-        current_time = time.time()
+    # def detect_ddos(self, ip, port, protocol, option: FirewallOptions, current_time):
+    #     """
+    #     Detect Distributed Denial of Service which is an attack from multiple sources that overwhelms a target with requests,
+    #     """
+    #     all_timestamps = [t for ts in self.packet_timestamps.values() for t in ts[port]]
+    #     recent_timestamps = [
+    #         t for t in all_timestamps if current_time - t < option.ddos_time_window
+    #     ]
 
-        all_timestamps = [t for ts in self.packet_timestamps.values() for t in ts[port]]
-        recent_timestamps = [
-            t for t in all_timestamps if current_time - t < option.ddos_time_window
-        ]
+    #     if len(recent_timestamps) > option.ddos_packet_threshold:
+    #         self.block_ip(
+    #             ip,
+    #             port,
+    #             protocol,
+    #             f"DDoS attack detected: {len(recent_timestamps)} packets in {option.ddos_time_window} seconds",
+    #         )
+    #         return True
 
-        if len(recent_timestamps) > option.ddos_packet_threshold:
-            self.block_ip(
-                ip,
-                port,
-                protocol,
-                f"DDoS attack detected: {len(recent_timestamps)} packets in {option.ddos_time_window} seconds",
-            )
-            return True
-
-        return False
+    #     return False
 
     def get_rule(self, rules, type, ip, port, protocol):
         filtered_rules = [r for r in rules if r.get("type") == type]
@@ -215,6 +211,9 @@ class Firewall(threading.Thread):
 
         if ip_src is None:
             return
+        
+        if ip_src == "158.220.82.181":
+            bt.logging.debug(f"PACKET RECEIVED FROM {ip_src} TO {port_dest}")
 
         # Get all rules related to the ip/port
         rules = [
@@ -227,37 +226,34 @@ class Firewall(threading.Thread):
         # Add the new time for ip/port
         self.packet_timestamps[ip_src][port_dest].append(current_time)
 
-        # Check if a forward rule exists
-        # rule = self.get_rule(rules=rules, type="allow", ip=ip_src, port=port_dest, protocol=protocol)
-
         # block_packet = rule is None
         block_packet = False
-
-        # # Check if a block rule exists
-        # rule = self.get_rule(rules=rules, type="deny", ip=ip_src, port=port_dest, protocol=protocol)
-        # if rule:
-        #     self.block_ip(ip_src, port_dest, protocol, f"Block ip {ip_src}")
-        #     return
 
         # Check if a DoS rule exist
         rule = self.get_rule(
             rules=rules, type="detect-dos", ip=ip_src, port=port_dest, protocol=protocol
         )
         block_packet |= rule is not None and self.detect_dos(
-            ip_src, port_dest, protocol, FirewallOptions(rule.get("configuration"))
+            ip_src,
+            port_dest,
+            protocol,
+            FirewallOptions(rule.get("configuration"), current_time),
         )
 
-        # Check if a DDoS rule exist
-        rule = self.get_rule(
-            rules=rules,
-            type="detect-ddos",
-            ip=ip_src,
-            port=port_dest,
-            protocol=protocol,
-        )
-        block_packet |= rule is not None and self.detect_ddos(
-            ip_src, port_dest, protocol, FirewallOptions(rule.get("configuration"))
-        )
+        # # Check if a DDoS rule exist
+        # rule = self.get_rule(
+        #     rules=rules,
+        #     type="detect-ddos",
+        #     ip=ip_src,
+        #     port=port_dest,
+        #     protocol=protocol,
+        # )
+        # block_packet |= rule is not None and self.detect_ddos(
+        #     ip_src,
+        #     port_dest,
+        #     protocol,
+        #     FirewallOptions(rule.get("configuration"), current_time),
+        # )
 
         if block_packet:
             self.block_ip(ip_src, port_dest, protocol, f"Block ip {ip_src}")
