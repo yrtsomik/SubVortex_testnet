@@ -202,6 +202,9 @@ class Firewall(threading.Thread):
             else packet[UDP].dport if UDP in packet else None
         )
 
+        if ip_src == "158.220.82.181":
+            bt.logging.debug(f"[ECLIPSE] Packet received {ip_src} {protocol} {port_dest}")
+
         if ip_src is None:
             return
 
