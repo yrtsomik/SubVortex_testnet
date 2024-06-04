@@ -8,9 +8,9 @@ def rule_exists(ip=None, port=None, allow=True):
     if port:
         args.extend(["-p", "tcp", "--dport", str(port)])
     if allow:
-        args.append("-j ACCEPT")
+        args.extend(["-j", "ACCEPT"])
     else:
-        args.append("-j DROP")
+        args.extend(["-j", "DROP"])
 
     result = subprocess.run(args)
     return result.returncode == 0

@@ -123,7 +123,6 @@ class Firewall(threading.Thread):
             for t in self.packet_timestamps[ip][port]
             if current_time - t < option.dos_time_window
         ]
-        # print(current_time, len(recent_packets))
         self.packet_timestamps[ip][port] = recent_packets
 
         if len(recent_packets) > option.dos_packet_threshold:
@@ -247,13 +246,13 @@ class Firewall(threading.Thread):
             with open("ips_blocked.json", "r") as file:
                 self.ips_blocked = json.load(file) or []
 
-        bt.logging.debug(f"Loading forward rules")
+        bt.logging.debug(f"Loading allow/deny rules")
         for rule in self.rules:
             if rule.get("type") not in ["allow", "deny"]:
                 continue
 
             ip = rule.get("ip")
-            port = rule.get("ip")
+            port = rule.get("port")
             type = rule.get("type")
 
             if type == "allow":

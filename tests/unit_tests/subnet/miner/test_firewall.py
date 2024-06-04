@@ -67,7 +67,8 @@ class TestFirewall(unittest.TestCase):
                 "tcp",
                 "--dport",
                 str(port),
-                "-j DROP",
+                "-j",
+                "DROP",
             ],
         )
         assert process_run.call_args_list[1][0] == (
@@ -110,7 +111,8 @@ class TestFirewall(unittest.TestCase):
                 "tcp",
                 "--dport",
                 str(port),
-                "-j DROP",
+                "-j",
+                "DROP",
             ],
         )
         assert process_run.call_args_list[1][0] == (
