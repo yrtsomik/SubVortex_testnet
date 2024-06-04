@@ -130,9 +130,6 @@ class Firewall(threading.Thread):
         ]
         self.packet_timestamps[ip][port] = recent_packets
 
-        if ip == "158.220.82.181":
-            bt.logging.debug(f"[ECLIPSE][DOS] {self.packet_timestamps[ip][port]} {recent_packets}")
-
         if len(recent_packets) > option.dos_packet_threshold:
             self.block_ip(
                 ip,
@@ -156,9 +153,6 @@ class Firewall(threading.Thread):
         recent_timestamps = [
             t for t in all_timestamps if current_time - t < option.ddos_time_window
         ]
-
-        if ip == "158.220.82.181":
-            bt.logging.debug(f"[ECLIPSE][DDOS] {self.packet_timestamps[ip][port]} {recent_timestamps}")
 
         if len(recent_timestamps) > option.ddos_packet_threshold:
             self.block_ip(
@@ -201,9 +195,6 @@ class Firewall(threading.Thread):
             if TCP in packet
             else packet[UDP].dport if UDP in packet else None
         )
-
-        if ip_src == "158.220.82.181":
-            bt.logging.debug(f"[ECLIPSE] Packet received {ip_src} {protocol} {port_dest}")
 
         if ip_src is None:
             return
