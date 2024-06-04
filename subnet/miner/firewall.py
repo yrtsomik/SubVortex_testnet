@@ -88,7 +88,7 @@ class Firewall(threading.Thread):
 
         # Update the local file
         with open("ips_blocked.json", "w") as file:
-            file.write(json.dumps(ip_blocked))
+            file.write(json.dumps(self.ips_blocked))
 
         bt.logging.warning(f"Blocking {protocol.upper()} {ip}/{port}: {reason}")
 
