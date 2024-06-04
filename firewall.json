@@ -1,27 +1,27 @@
 [
     {
         "ip": "167.86.79.86",
-        "type": "forward"
+        "type": "allow"
     },
     {
         "port": 22,
-        "type": "forward"
+        "type": "allow"
     },
     {
         "port": 9944,
-        "type": "forward"
+        "type": "allow"
     },
     {
         "port": 9933,
-        "type": "forward"
+        "type": "allow"
     },
     {
         "port": 30333,
-        "type": "forward"
+        "type": "allow"
     },
     {
         "port": 8091,
-        "type": "forward"
+        "type": "allow"
     },
     {
         "port": 8091,
@@ -41,6 +41,6 @@
     },
     {
         "ip": "158.220.82.181",
-        "type": "block"
+        "type": "deny"
     }
 ]

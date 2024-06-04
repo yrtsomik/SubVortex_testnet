@@ -2,13 +2,21 @@ import os
 import json
 import time
 import logging
-import subprocess
 import threading
 import bittensor as bt
-from typing import List
 from collections import defaultdict
 from dataclasses import dataclass
 from scapy.all import sniff, TCP, UDP, IP, Raw
+
+from subnet.miner.iptables import (
+    deny_traffic_from_ip,
+    deny_traffic_on_port,
+    deny_traffic_from_ip_and_port,
+    allow_traffic_from_ip,
+    allow_traffic_on_port,
+    allow_traffic_from_ip_and_port,
+    remove_deny_traffic_from_ip_and_port,
+)
 
 # Disalbe scapy logging
 logging.getLogger("scapy.runtime").setLevel(logging.CRITICAL)
@@ -72,7 +80,7 @@ class Firewall(threading.Thread):
             return
 
         # Update the ip tables
-        subprocess.run(["sudo", "iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"])
+        deny_traffic_from_ip_and_port(ip, port)
 
         # Update the block ips
         ip_blocked = {"ip": ip, "port": port, "reason": reason}
@@ -90,7 +98,7 @@ class Firewall(threading.Thread):
             return
 
         # Update the ip tables
-        subprocess.run(["sudo", "iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"])
+        remove_deny_traffic_from_ip_and_port(ip, port)
 
         # Update the block ips
         self.ips_blocked = [
@@ -203,12 +211,12 @@ class Firewall(threading.Thread):
         ]
 
         # Check if a forward rule exists
-        rule = self.get_rule(rules=rules, type="forward", ip=ip_src, port=port_dest)
+        rule = self.get_rule(rules=rules, type="allow", ip=ip_src, port=port_dest)
 
         block_packet = rule is None
 
         # Check if a block rule exists
-        rule = self.get_rule(rules=rules, type="block", ip=ip_src, port=port_dest)
+        rule = self.get_rule(rules=rules, type="deny", ip=ip_src, port=port_dest)
         if rule:
             self.block_ip(ip_src, port_dest, f"Block ip {ip_src}")
             return
@@ -234,10 +242,34 @@ class Firewall(threading.Thread):
 
     def run(self):
         # Reload the previous ips blocked
+        bt.logging.debug("Loading blocked ips")
         if os.path.exists("ips_blocked.json"):
             with open("ips_blocked.json", "r") as file:
                 self.ips_blocked = json.load(file) or []
-        bt.logging.debug(f"Loaded {len(self.ips_blocked)} blocked ip")
+
+        bt.logging.debug(f"Loading forward rules")
+        for rule in self.rules:
+            if rule.get("type") not in ["allow", "deny"]:
+                continue
+
+            ip = rule.get("ip")
+            port = rule.get("ip")
+            type = rule.get("type")
+
+            if type == "allow":
+                if ip and port:
+                    allow_traffic_from_ip_and_port(ip, port)
+                elif ip:
+                    allow_traffic_from_ip(ip)
+                elif port:
+                    allow_traffic_on_port(port)
+            else:
+                if ip and port:
+                    deny_traffic_from_ip_and_port(ip, port)
+                elif ip:
+                    deny_traffic_from_ip(ip)
+                elif port:
+                    deny_traffic_on_port(port)
 
         # Start sniffing with the filter
         sniff(

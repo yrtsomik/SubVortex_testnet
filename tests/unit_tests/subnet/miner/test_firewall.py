@@ -35,8 +35,37 @@ class TestFirewall(unittest.TestCase):
             None,
         )
         assert block is not None
-        process_run.assert_called_once_with(
-            ["sudo", "iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"]
+        assert process_run.call_count == 2
+        assert process_run.call_args_list[0][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-C",
+                "INPUT",
+                "-s",
+                ip,
+                "-p",
+                "tcp",
+                "--dport",
+                str(port),
+                "-j DROP",
+            ],
+        )
+        assert process_run.call_args_list[1][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-A",
+                "INPUT",
+                "-s",
+                ip,
+                "-p",
+                "tcp",
+                "--dport",
+                str(port),
+                "-j",
+                "DROP",
+            ],
         )
 
     def assert_unblocked(self, firewall, ip, port, process_run):
@@ -49,8 +78,37 @@ class TestFirewall(unittest.TestCase):
             None,
         )
         assert block is None
-        process_run.assert_called_once_with(
-            ["sudo", "iptables", "-D", "INPUT", "-s", ip, "-j", "DROP"]
+        assert process_run.call_count == 2
+        assert process_run.call_args_list[0][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-C",
+                "INPUT",
+                "-s",
+                ip,
+                "-p",
+                "tcp",
+                "--dport",
+                str(port),
+                "-j DROP",
+            ],
+        )
+        assert process_run.call_args_list[1][0](
+            [
+                "sudo",
+                "iptables",
+                "-D",
+                "INPUT",
+                "-s",
+                ip,
+                "-p",
+                "tcp",
+                "--dport",
+                str(port),
+                "-j",
+                "DROP",
+            ]
         )
 
     def set_time(self, mock_time, second=0):
@@ -112,7 +170,7 @@ class TestFirewall(unittest.TestCase):
         self, mock_time, mock_run
     ):
         # Arrange
-        rules = [{"port": 8091, "type": "forward"}]
+        rules = [{"port": 8091, "type": "allow"}]
         firewall = Firewall("eth0", rules=rules)
         packet = TCP(dport=8091) / IP(src="192.168.0.1")
 
@@ -130,7 +188,7 @@ class TestFirewall(unittest.TestCase):
         self, mock_time, mock_run
     ):
         # Arrange
-        rules = [{"port": 8091, "type": "forward"}]
+        rules = [{"port": 8091, "type": "allow"}]
         firewall = Firewall("eth0", rules=rules)
         packet = TCP(dport=8092) / IP(src="192.168.0.1")
 
@@ -148,7 +206,7 @@ class TestFirewall(unittest.TestCase):
     ):
         # Arrange
         rules = [
-            {"port": 8091, "type": "forward"},
+            {"port": 8091, "type": "allow"},
             {
                 "port": 8091,
                 "type": "detect-dos",
@@ -176,7 +234,7 @@ class TestFirewall(unittest.TestCase):
     ):
         # Arrange
         rules = [
-            {"port": 8091, "type": "forward"},
+            {"port": 8091, "type": "allow"},
             {
                 "port": 8091,
                 "type": "detect-dos",
@@ -207,7 +265,7 @@ class TestFirewall(unittest.TestCase):
     ):
         # Arrange
         rules = [
-            {"port": 8091, "type": "forward"},
+            {"port": 8091, "type": "allow"},
             {
                 "port": 8091,
                 "type": "detect-dos",
@@ -239,7 +297,7 @@ class TestFirewall(unittest.TestCase):
     ):
         # Arrange
         rules = [
-            {"port": 8091, "type": "forward"},
+            {"port": 8091, "type": "allow"},
             {
                 "port": 8091,
                 "type": "detect-ddos",
@@ -270,7 +328,7 @@ class TestFirewall(unittest.TestCase):
     ):
         # Arrange
         rules = [
-            {"port": 8091, "type": "forward"},
+            {"port": 8091, "type": "allow"},
             {
                 "port": 8091,
                 "type": "detect-ddos",
@@ -304,7 +362,7 @@ class TestFirewall(unittest.TestCase):
         rules = [
             {
                 "ip": "192.168.0.1",
-                "type": "block",
+                "type": "deny",
             }
         ]
         firewall = Firewall("eth0", rules=rules)
@@ -327,7 +385,7 @@ class TestFirewall(unittest.TestCase):
         rules = [
             {
                 "ip": "192.168.0.1",
-                "type": "block",
+                "type": "deny",
             }
         ]
         firewall = Firewall("eth0", rules=rules)
@@ -350,11 +408,11 @@ class TestFirewall(unittest.TestCase):
         rules = [
             {
                 "ip": "192.168.0.1",
-                "type": "block",
+                "type": "deny",
             },
             {
                 "port": 8091,
-                "type": "forward",
+                "type": "allow",
             },
         ]
         firewall = Firewall("eth0", rules=rules)
@@ -374,7 +432,7 @@ class TestFirewall(unittest.TestCase):
     def test_a_pcket_is_blocked_and_then_blocked_again(self, mock_time, mock_run):
         # Arrange
         rules = [
-            {"port": 8091, "type": "forward"},
+            {"port": 8091, "type": "allow"},
             {
                 "port": 8091,
                 "type": "detect-dos",
@@ -414,7 +472,7 @@ class TestFirewall(unittest.TestCase):
     def test_a_pcket_is_blocked_and_then_unblocked(self, mock_time, mock_run):
         # Arrange
         rules = [
-            {"port": 8091, "type": "forward"},
+            {"port": 8091, "type": "allow"},
             {
                 "port": 8091,
                 "type": "detect-dos",
