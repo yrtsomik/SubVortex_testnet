@@ -211,7 +211,7 @@ class Firewall(threading.Thread):
 
         if ip_src is None:
             return
-        
+
         if ip_src == "158.220.82.181":
             bt.logging.debug(f"PACKET RECEIVED FROM {ip_src} TO {port_dest}")
 
@@ -237,7 +237,8 @@ class Firewall(threading.Thread):
             ip_src,
             port_dest,
             protocol,
-            FirewallOptions(rule.get("configuration"), current_time),
+            FirewallOptions(rule.get("configuration")),
+            current_time
         )
 
         # # Check if a DDoS rule exist
@@ -252,7 +253,8 @@ class Firewall(threading.Thread):
         #     ip_src,
         #     port_dest,
         #     protocol,
-        #     FirewallOptions(rule.get("configuration"), current_time),
+        #     FirewallOptions(rule.get("configuration")), 
+        #     current_time
         # )
 
         if block_packet:
