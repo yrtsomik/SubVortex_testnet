@@ -55,7 +55,6 @@ class Firewall(threading.Thread):
         super().__init__(daemon=True)
 
         self.stop_flag = threading.Event()
-        self.packet_counts = defaultdict(lambda: defaultdict(int))
         self.packet_timestamps = defaultdict(lambda: defaultdict(list))
 
         self.interface = interface
@@ -74,7 +73,12 @@ class Firewall(threading.Thread):
 
     def block_ip(self, ip, port, protocol, reason):
         ip_blocked = next(
-            (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port and x["protocol"] == protocol), None
+            (
+                x
+                for x in self.ips_blocked
+                if x["ip"] == ip and x["port"] == port and x["protocol"] == protocol
+            ),
+            None,
         )
         if ip_blocked:
             return
@@ -94,7 +98,12 @@ class Firewall(threading.Thread):
 
     def unblock_ip(self, ip, port, protocol):
         ip_blocked = next(
-            (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port and x['protocol'] == protocol), None
+            (
+                x
+                for x in self.ips_blocked
+                if x["ip"] == ip and x["port"] == port and x["protocol"] == protocol
+            ),
+            None,
         )
         if not ip_blocked:
             return
@@ -104,7 +113,9 @@ class Firewall(threading.Thread):
 
         # Update the block ips
         self.ips_blocked = [
-            x for x in self.ips_blocked if x["ip"] != ip or x["port"] != port or x["protocol"] != protocol
+            x
+            for x in self.ips_blocked
+            if x["ip"] != ip or x["port"] != port or x["protocol"] != protocol
         ]
 
         # Update the local file
@@ -113,15 +124,11 @@ class Firewall(threading.Thread):
 
         bt.logging.warning(f"Unblocking {protocol.upper()} {ip}/{port}")
 
-
     def detect_dos(self, ip, port, protocol, option: FirewallOptions):
         """
         Detect Denial of Service attack which is an attack from a single source that overwhelms a target with requests,
         """
         current_time = time.time()
-
-        self.packet_counts[ip][port] += 1
-        self.packet_timestamps[ip][port].append(current_time)
 
         recent_packets = [
             t
@@ -147,8 +154,6 @@ class Firewall(threading.Thread):
         """
         current_time = time.time()
 
-        self.packet_timestamps[ip][port].append(current_time)
-
         all_timestamps = [t for ts in self.packet_timestamps.values() for t in ts[port]]
         recent_timestamps = [
             t for t in all_timestamps if current_time - t < option.ddos_time_window
@@ -170,7 +175,13 @@ class Firewall(threading.Thread):
 
         # Ip/Port rule
         rule = next(
-            (r for r in filtered_rules if r.get("ip") == ip and r.get("port") == port and r.get("protocol") == protocol),
+            (
+                r
+                for r in filtered_rules
+                if r.get("ip") == ip
+                and r.get("port") == port
+                and r.get("protocol") == protocol
+            ),
             None,
         )
 
@@ -181,7 +192,13 @@ class Firewall(threading.Thread):
 
         # Port rule
         rule = rule or next(
-            (r for r in filtered_rules if port is not None and r.get("port") == port and r.get("protocol") == protocol),
+            (
+                r
+                for r in filtered_rules
+                if port is not None
+                and r.get("port") == port
+                and r.get("protocol") == protocol
+            ),
             None,
         )
 
@@ -204,6 +221,12 @@ class Firewall(threading.Thread):
             r for r in self.rules if r.get("ip") == ip_src or r.get("port") == port_dest
         ]
 
+        # Get the current time
+        current_time = time.time()
+
+        # Add the new time for ip/port
+        self.packet_timestamps[ip_src][port_dest].append(current_time)
+
         # Check if a forward rule exists
         # rule = self.get_rule(rules=rules, type="allow", ip=ip_src, port=port_dest, protocol=protocol)
 
@@ -217,13 +240,21 @@ class Firewall(threading.Thread):
         #     return
 
         # Check if a DoS rule exist
-        rule = self.get_rule(rules=rules, type="detect-dos", ip=ip_src, port=port_dest, protocol=protocol)
+        rule = self.get_rule(
+            rules=rules, type="detect-dos", ip=ip_src, port=port_dest, protocol=protocol
+        )
         block_packet |= rule is not None and self.detect_dos(
             ip_src, port_dest, protocol, FirewallOptions(rule.get("configuration"))
         )
 
         # Check if a DDoS rule exist
-        rule = self.get_rule(rules=rules, type="detect-ddos", ip=ip_src, port=port_dest, protocol=protocol)
+        rule = self.get_rule(
+            rules=rules,
+            type="detect-ddos",
+            ip=ip_src,
+            port=port_dest,
+            protocol=protocol,
+        )
         block_packet |= rule is not None and self.detect_ddos(
             ip_src, port_dest, protocol, FirewallOptions(rule.get("configuration"))
         )
