@@ -1,10 +1,29 @@
 import time
 import unittest
+import subprocess
 import bittensor as bt
+from functools import partial
 from scapy.all import IP, TCP, UDP, Packet
 from unittest.mock import patch
 
 from subnet.miner.firewall import Firewall, FirewallOptions
+
+
+def is_sublist(sublist, main_list):
+    sublist_len = len(sublist)
+    main_list_len = len(main_list)
+
+    for i in range(main_list_len - sublist_len + 1):
+        if main_list[i : i + sublist_len] == sublist:
+            return True
+    return False
+
+
+def mock_check_rule(mock_run, returncode, cmd):
+    if is_sublist(["sudo", "iptables", "-C", "INPUT"], cmd):
+        return subprocess.CompletedProcess(args=cmd, returncode=returncode)
+    else:
+        return mock_run
 
 
 class TestFirewall(unittest.TestCase):
@@ -94,7 +113,7 @@ class TestFirewall(unittest.TestCase):
                 "-j DROP",
             ],
         )
-        assert process_run.call_args_list[1][0](
+        assert process_run.call_args_list[1][0] == (
             [
                 "sudo",
                 "iptables",
@@ -108,7 +127,7 @@ class TestFirewall(unittest.TestCase):
                 str(port),
                 "-j",
                 "DROP",
-            ]
+            ],
         )
 
     def set_time(self, mock_time, second=0):
@@ -469,7 +488,7 @@ class TestFirewall(unittest.TestCase):
 
     @patch("subprocess.run")
     @patch("time.time")
-    def test_a_pcket_is_blocked_and_then_unblocked(self, mock_time, mock_run):
+    def test_a_packet_is_blocked_and_then_unblocked(self, mock_time, mock_run):
         # Arrange
         rules = [
             {"port": 8091, "type": "allow"},
@@ -498,6 +517,7 @@ class TestFirewall(unittest.TestCase):
 
         # Arrange
         mock_run.reset_mock()
+        mock_run.side_effect = partial(mock_check_rule, mock_run, 0)
 
         # Action
         self.set_time(mock_time, 60)

@@ -12,7 +12,7 @@ def rule_exists(ip=None, port=None, allow=True):
     else:
         args.append("-j DROP")
 
-    result = subprocess.run(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+    result = subprocess.run(args)
     return result.returncode == 0
 
 
