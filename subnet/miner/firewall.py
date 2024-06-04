@@ -90,6 +90,8 @@ class Firewall(threading.Thread):
         with open("ips_blocked.txt", "a") as file:
             file.write(json.dumps(ip_blocked) + "\n")
 
+        bt.logging.warning(f"Blocking {protocol.upper()} {ip}/{port}: {reason}")
+
     def unblock_ip(self, ip, port, protocol):
         ip_blocked = next(
             (x for x in self.ips_blocked if x["ip"] == ip and x["port"] == port and x['protocol'] == protocol), None
@@ -108,6 +110,9 @@ class Firewall(threading.Thread):
         # Update the local file
         with open("ips_blocked.txt", "w") as file:
             file.write(json.dumps(self.ips_blocked))
+
+        bt.logging.warning(f"Unblocking {protocol.upper()} {ip}/{port}")
+
 
     def detect_dos(self, ip, port, protocol, option: FirewallOptions):
         """
