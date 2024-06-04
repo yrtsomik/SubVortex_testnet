@@ -12,7 +12,7 @@ def rule_exists(ip=None, port=None, allow=True):
     else:
         args.extend(["-j", "DROP"])
 
-    result = subprocess.run(args)
+    result = subprocess.run(args, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
     return result.returncode == 0
 
 
@@ -20,7 +20,11 @@ def allow_traffic_from_ip(ip):
     if rule_exists(ip=ip):
         return
 
-    subprocess.run(["sudo", "iptables", "-A", "INPUT", "-s", ip, "-j", "ACCEPT"])
+    subprocess.run(
+        ["sudo", "iptables", "-A", "INPUT", "-s", ip, "-j", "ACCEPT"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def allow_traffic_on_port(port):
@@ -39,7 +43,9 @@ def allow_traffic_on_port(port):
             str(port),
             "-j",
             "ACCEPT",
-        ]
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 
@@ -61,7 +67,9 @@ def allow_traffic_from_ip_and_port(ip, port):
             str(port),
             "-j",
             "ACCEPT",
-        ]
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 
@@ -69,7 +77,11 @@ def deny_traffic_from_ip(ip):
     if rule_exists(ip=ip, allow=False):
         return
 
-    subprocess.run(["sudo", "iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"])
+    subprocess.run(
+        ["sudo", "iptables", "-A", "INPUT", "-s", ip, "-j", "DROP"],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
+    )
 
 
 def deny_traffic_on_port(port):
@@ -88,7 +100,9 @@ def deny_traffic_on_port(port):
             str(port),
             "-j",
             "DROP",
-        ]
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 
@@ -110,7 +124,9 @@ def deny_traffic_from_ip_and_port(ip, port):
             str(port),
             "-j",
             "DROP",
-        ]
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
 
 
@@ -132,5 +148,7 @@ def remove_deny_traffic_from_ip_and_port(ip, port):
             str(port),
             "-j",
             "DROP",
-        ]
+        ],
+        stdout=subprocess.DEVNULL,
+        stderr=subprocess.DEVNULL,
     )
