@@ -25,7 +25,7 @@ if [ $? -ne 0 ]; then
 fi
 
 TYPE='miner'
-NETWORK='testnet'
+NETWORK='mainnet'
 SUBTENSOR='finney'
 SKIP_SETUP=false
 
