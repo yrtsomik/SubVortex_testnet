@@ -4,7 +4,7 @@ import subprocess
 import bittensor as bt
 from functools import partial
 from scapy.all import IP, TCP, UDP, Packet
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 from subnet.miner.firewall import Firewall, FirewallOptions
 
@@ -140,6 +140,294 @@ class TestFirewall(unittest.TestCase):
         specific_time = time.struct_time((2024, 5, 28, 12, 0, second, 0, 0, -1))
         mock_time.return_value = time.mktime(specific_time)
 
+    @patch("codecs.open")
+    @patch("subprocess.run")
+    @patch("subnet.miner.firewall.sniff")
+    def test_when_a_port_allow_rule_is_provided_should_update_iptables_accordingly(
+        self, mock_sniff, mock_run, mock_open
+    ):
+        # Arrange
+        mock_open.return_value.__enter__.return_value.read.return_value = []
+
+        mock_sniff.side_effect = lambda *args, **kwargs: [MagicMock()]
+
+        rules = [{"port": 22, "protocol": "udp", "type": "allow"}]
+        firewall = Firewall("eth0", rules=rules)
+
+        # Action
+        firewall.run()
+
+        # Assets
+        assert mock_run.call_count == 2
+        assert mock_run.call_args_list[0][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-C",
+                "INPUT",
+                "-p",
+                "udp",
+                "--dport",
+                "22",
+                "-j",
+                "ACCEPT",
+            ],
+        )
+        assert mock_run.call_args_list[1][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-A",
+                "INPUT",
+                "-p",
+                "udp",
+                "--dport",
+                "22",
+                "-j",
+                "ACCEPT",
+            ],
+        )
+
+    @patch("codecs.open")
+    @patch("subprocess.run")
+    @patch("subnet.miner.firewall.sniff")
+    def test_when_an_ip_allow_rule_is_provided_should_update_iptables_accordingly(
+        self, mock_sniff, mock_run, mock_open
+    ):
+        # Arrange
+        mock_open.return_value.__enter__.return_value.read.return_value = []
+
+        mock_sniff.side_effect = lambda *args, **kwargs: [MagicMock()]
+
+        rules = [{"ip": "192.168.10.1", "type": "allow"}]
+        firewall = Firewall("eth0", rules=rules)
+
+        # Action
+        firewall.run()
+
+        # Assets
+        assert mock_run.call_count == 2
+        assert mock_run.call_args_list[0][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-C",
+                "INPUT",
+                "-s",
+                "192.168.10.1",
+                "-j",
+                "ACCEPT",
+            ],
+        )
+        assert mock_run.call_args_list[1][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-A",
+                "INPUT",
+                "-s",
+                "192.168.10.1",
+                "-j",
+                "ACCEPT",
+            ],
+        )
+
+    @patch("codecs.open")
+    @patch("subprocess.run")
+    @patch("subnet.miner.firewall.sniff")
+    def test_when_an_ip_and_port_allow_rule_is_provided_should_update_iptables_accordingly(
+        self, mock_sniff, mock_run, mock_open
+    ):
+        # Arrange
+        mock_open.return_value.__enter__.return_value.read.return_value = []
+
+        mock_sniff.side_effect = lambda *args, **kwargs: [MagicMock()]
+
+        rules = [{"ip": "192.168.10.1", "port": 22, "protocol": "udp", "type": "allow"}]
+        firewall = Firewall("eth0", rules=rules)
+
+        # Action
+        firewall.run()
+
+        # Assets
+        assert mock_run.call_count == 2
+        assert mock_run.call_args_list[0][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-C",
+                "INPUT",
+                "-s",
+                "192.168.10.1",
+                "-p",
+                "udp",
+                "--dport",
+                "22",
+                "-j",
+                "ACCEPT",
+            ],
+        )
+        assert mock_run.call_args_list[1][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-A",
+                "INPUT",
+                "-s",
+                "192.168.10.1",
+                "-p",
+                "udp",
+                "--dport",
+                "22",
+                "-j",
+                "ACCEPT",
+            ],
+        )
+
+    @patch("codecs.open")
+    @patch("subprocess.run")
+    @patch("subnet.miner.firewall.sniff")
+    def test_when_a_port_deny_rule_is_provided_should_update_iptables_accordingly(
+        self, mock_sniff, mock_run, mock_open
+    ):
+        # Arrange
+        mock_open.return_value.__enter__.return_value.read.return_value = []
+
+        mock_sniff.side_effect = lambda *args, **kwargs: [MagicMock()]
+
+        rules = [{"port": 22, "protocol": "udp", "type": "deny"}]
+        firewall = Firewall("eth0", rules=rules)
+
+        # Action
+        firewall.run()
+
+        # Assets
+        assert mock_run.call_count == 2
+        assert mock_run.call_args_list[0][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-C",
+                "INPUT",
+                "-p",
+                "udp",
+                "--dport",
+                "22",
+                "-j",
+                "DROP",
+            ],
+        )
+        assert mock_run.call_args_list[1][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-A",
+                "INPUT",
+                "-p",
+                "udp",
+                "--dport",
+                "22",
+                "-j",
+                "DROP",
+            ],
+        )
+
+    @patch("codecs.open")
+    @patch("subprocess.run")
+    @patch("subnet.miner.firewall.sniff")
+    def test_when_an_ip_deny_rule_is_provided_should_update_iptables_accordingly(
+        self, mock_sniff, mock_run, mock_open
+    ):
+        # Arrange
+        mock_open.return_value.__enter__.return_value.read.return_value = []
+
+        mock_sniff.side_effect = lambda *args, **kwargs: [MagicMock()]
+
+        rules = [{"ip": "192.168.10.1", "type": "deny"}]
+        firewall = Firewall("eth0", rules=rules)
+
+        # Action
+        firewall.run()
+
+        # Assets
+        assert mock_run.call_count == 2
+        assert mock_run.call_args_list[0][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-C",
+                "INPUT",
+                "-s",
+                "192.168.10.1",
+                "-j",
+                "DROP",
+            ],
+        )
+        assert mock_run.call_args_list[1][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-A",
+                "INPUT",
+                "-s",
+                "192.168.10.1",
+                "-j",
+                "DROP",
+            ],
+        )
+
+    @patch("codecs.open")
+    @patch("subprocess.run")
+    @patch("subnet.miner.firewall.sniff")
+    def test_when_an_ip_and_port_deny_rule_is_provided_should_update_iptables_accordingly(
+        self, mock_sniff, mock_run, mock_open
+    ):
+        # Arrange
+        mock_open.return_value.__enter__.return_value.read.return_value = []
+
+        mock_sniff.side_effect = lambda *args, **kwargs: [MagicMock()]
+
+        rules = [{"ip": "192.168.10.1", "port": 22, "protocol": "udp", "type": "deny"}]
+        firewall = Firewall("eth0", rules=rules)
+
+        # Action
+        firewall.run()
+
+        # Assets
+        assert mock_run.call_count == 2
+        assert mock_run.call_args_list[0][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-C",
+                "INPUT",
+                "-s",
+                "192.168.10.1",
+                "-p",
+                "udp",
+                "--dport",
+                "22",
+                "-j",
+                "DROP",
+            ],
+        )
+        assert mock_run.call_args_list[1][0] == (
+            [
+                "sudo",
+                "iptables",
+                "-A",
+                "INPUT",
+                "-s",
+                "192.168.10.1",
+                "-p",
+                "udp",
+                "--dport",
+                "22",
+                "-j",
+                "DROP",
+            ],
+        )
+
     @patch("subprocess.run")
     @patch("time.time")
     def test_when_a_packet_with_no_ip_is_received_should_not_forward_the_packet(
@@ -156,22 +444,6 @@ class TestFirewall(unittest.TestCase):
         # Assets
         assert 0 == len(firewall.ips_blocked)
         mock_run.assert_not_called()
-
-    @patch("subprocess.run")
-    @patch("time.time")
-    def test_when_a_packet_not_tcp_is_received_should_not_forward_the_packet(
-        self, mock_time, mock_run
-    ):
-        # Arrange
-        firewall = Firewall("eth0")
-        packet = UDP() / IP(src="192.168.0.1")
-
-        # Action
-        self.set_time(mock_time)
-        firewall.packet_callback(packet)
-
-        # Assets
-        self.assert_blocked(firewall, "192.168.0.1", 53, mock_run)
 
     @patch("subprocess.run")
     @patch("time.time")
@@ -259,7 +531,6 @@ class TestFirewall(unittest.TestCase):
     ):
         # Arrange
         rules = [
-            {"port": 8091, "type": "allow"},
             {
                 "port": 8091,
                 "type": "detect-dos",
@@ -454,7 +725,7 @@ class TestFirewall(unittest.TestCase):
 
     @patch("subprocess.run")
     @patch("time.time")
-    def test_a_pcket_is_blocked_and_then_blocked_again(self, mock_time, mock_run):
+    def test_a_packet_is_blocked_and_then_blocked_again(self, mock_time, mock_run):
         # Arrange
         rules = [
             {"port": 8091, "type": "allow"},

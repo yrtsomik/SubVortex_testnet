@@ -6,7 +6,7 @@ import threading
 import bittensor as bt
 from collections import defaultdict
 from dataclasses import dataclass
-from scapy.all import sniff, TCP, UDP, IP, Raw, Packet
+from scapy.all import sniff, TCP, UDP, IP, Packet
 
 from subnet.miner.iptables import (
     deny_traffic_from_ip,
@@ -55,6 +55,7 @@ class Firewall(threading.Thread):
         super().__init__(daemon=True)
 
         self.stop_flag = threading.Event()
+        self.packet_counts = defaultdict(lambda: defaultdict(int))
         self.packet_timestamps = defaultdict(lambda: defaultdict(list))
 
         self.interface = interface
@@ -146,38 +147,32 @@ class Firewall(threading.Thread):
 
         return False
 
-    # def detect_ddos(self, ip, port, protocol, option: FirewallOptions, current_time):
-    #     """
-    #     Detect Distributed Denial of Service which is an attack from multiple sources that overwhelms a target with requests,
-    #     """
-    #     all_timestamps = [t for ts in self.packet_timestamps.values() for t in ts[port]]
-    #     recent_timestamps = [
-    #         t for t in all_timestamps if current_time - t < option.ddos_time_window
-    #     ]
+    def detect_ddos(self, ip, port, protocol, option: FirewallOptions, current_time):
+        """
+        Detect Distributed Denial of Service which is an attack from multiple sources that overwhelms a target with requests,
+        """
+        all_timestamps = [t for ts in self.packet_timestamps.values() for t in ts[port]]
+        recent_timestamps = [
+            t for t in all_timestamps if current_time - t < option.ddos_time_window
+        ]
 
-    #     if len(recent_timestamps) > option.ddos_packet_threshold:
-    #         self.block_ip(
-    #             ip,
-    #             port,
-    #             protocol,
-    #             f"DDoS attack detected: {len(recent_timestamps)} packets in {option.ddos_time_window} seconds",
-    #         )
-    #         return True
+        if len(recent_timestamps) > option.ddos_packet_threshold:
+            self.block_ip(
+                ip,
+                port,
+                protocol,
+                f"DDoS attack detected: {len(recent_timestamps)} packets in {option.ddos_time_window} seconds",
+            )
+            return True
 
-    #     return False
+        return False
 
-    def get_rule(self, rules, type, ip, port, protocol):
+    def get_rule(self, rules, type, ip, port):
         filtered_rules = [r for r in rules if r.get("type") == type]
 
         # Ip/Port rule
         rule = next(
-            (
-                r
-                for r in filtered_rules
-                if r.get("ip") == ip
-                and r.get("port") == port
-                and r.get("protocol") == protocol
-            ),
+            (r for r in filtered_rules if r.get("ip") == ip and r.get("port") == port),
             None,
         )
 
@@ -188,27 +183,25 @@ class Firewall(threading.Thread):
 
         # Port rule
         rule = rule or next(
-            (
-                r
-                for r in filtered_rules
-                if port is not None
-                and r.get("port") == port
-                and r.get("protocol") == protocol
-            ),
+            (r for r in filtered_rules if port is not None and r.get("port") == port),
             None,
         )
 
         return rule
 
     def packet_callback(self, packet: Packet):
-        ip_src = packet[IP].src if IP in packet else None
+        # Get the protocol
         protocol = "tcp" if TCP in packet else "udp" if UDP in packet else None
+
+        # Get the destination port
         port_dest = (
             packet[TCP].dport
             if TCP in packet
             else packet[UDP].dport if UDP in packet else None
         )
 
+        # Get the source ip
+        ip_src = packet[IP].src if IP in packet else None
         if ip_src is None:
             return
 
@@ -224,38 +217,41 @@ class Firewall(threading.Thread):
         current_time = time.time()
 
         # Add the new time for ip/port
+        self.packet_counts[ip_src][port_dest] += 1
         self.packet_timestamps[ip_src][port_dest].append(current_time)
 
         # block_packet = rule is None
-        block_packet = False
+        rule = self.get_rule(
+            rules=rules, type="allow", ip=ip_src, port=port_dest
+        )
+        block_packet = rule is None
 
         # Check if a DoS rule exist
         rule = self.get_rule(
-            rules=rules, type="detect-dos", ip=ip_src, port=port_dest, protocol=protocol
+            rules=rules, type="detect-dos", ip=ip_src, port=port_dest
         )
         block_packet |= rule is not None and self.detect_dos(
             ip_src,
             port_dest,
             protocol,
             FirewallOptions(rule.get("configuration")),
-            current_time
+            current_time,
         )
 
-        # # Check if a DDoS rule exist
-        # rule = self.get_rule(
-        #     rules=rules,
-        #     type="detect-ddos",
-        #     ip=ip_src,
-        #     port=port_dest,
-        #     protocol=protocol,
-        # )
-        # block_packet |= rule is not None and self.detect_ddos(
-        #     ip_src,
-        #     port_dest,
-        #     protocol,
-        #     FirewallOptions(rule.get("configuration")), 
-        #     current_time
-        # )
+        # Check if a DDoS rule exist
+        rule = self.get_rule(
+            rules=rules,
+            type="detect-ddos",
+            ip=ip_src,
+            port=port_dest,
+        )
+        block_packet |= rule is not None and self.detect_ddos(
+            ip_src,
+            port_dest,
+            protocol,
+            FirewallOptions(rule.get("configuration")),
+            current_time,
+        )
 
         if block_packet:
             self.block_ip(ip_src, port_dest, protocol, f"Block ip {ip_src}")
